@@ -1,0 +1,21 @@
+{
+  "log_id": "BAL-2026-09",
+  "instrument": "Mettler Toledo MS204TS",
+  "serial_number": "BA09123456",
+  "location": "Комната 214, стол OM-2",
+  "readability_mg": 0.1,
+  "period": "2026-09",
+  "owner": {
+    "name": "Смирнова Елена Викторовна",
+    "role": "оператор весов",
+    "email": "e.smirnova@lab-demo.example",
+    "phone": "+7 (900) 123-45-67"
+  },
+  "daily_checks": [
+    { "date": "2026-09-01", "weight_g": 200, "indication_g": 200.0003, "deviation_mg": 0.3, "result": "pass" },
+    { "date": "2026-09-02", "weight_g": 200, "indication_g": 200.0001, "deviation_mg": 0.1, "result": "pass" },
+    { "date": "2026-09-03", "weight_g": 200, "indication_g": 199.9994, "deviation_mg": -0.6, "result": "fail" },
+    { "date": "2026-09-04", "weight_g": 200, "indication_g": 200.0002, "deviation_mg": 0.2, "result": "pass" }
+  ],
+  "notes": "Проверка 2026-09-03 не прошла критерий ±0,5 мг из SOP-QC-002; весы выведены из эксплуатации, вызвана калибровка."
+}
