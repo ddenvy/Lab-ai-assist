@@ -1,0 +1,445 @@
+@page "/chat"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Chat - Laboratory Assistant</PageTitle>
+
+<div class="chat-container">
+    <h1>Ask the Assistant</h1>
+    <p class="subtitle">Questions are answered based on uploaded SOPs and instrument data. Every query is logged in the audit journal.</p>
+
+    @if (messages.Count == 0)
+    {
+        <div class="welcome-message">
+            <h2>Welcome!</h2>
+            <p>Try asking questions like:</p>
+            <ul>
+                <li>"What are the acceptance criteria for HPLC system suitability?"</li>
+                <li>"Show me the balance calibration results"</li>
+                <li>"What is the procedure for OOS investigation?"</li>
+            </ul>
+        </div>
+    }
+
+    <div class="messages">
+        @foreach (var message in messages)
+        {
+            <div class="message @(message.IsUser ? "user" : "assistant")">
+                <div class="message-header">
+                    <strong>@(message.IsUser ? "You" : "Assistant")</strong>
+                    @if (!message.IsUser && !string.IsNullOrEmpty(message.CorrelationId))
+                    {
+                        <span class="meta">Correlation: @message.CorrelationId</span>
+                    }
+                    @if (!message.IsUser && message.AuditEntryId.HasValue)
+                    {
+                        <span class="meta">Audit ID: #@message.AuditEntryId</span>
+                    }
+                </div>
+                <div class="message-content">@message.Text</div>
+                @if (!message.IsUser && message.Citations?.Any() == true)
+                {
+                    <div class="citations">
+                        <strong>Sources:</strong>
+                        @foreach (var citation in message.Citations)
+                        {
+                            <span class="citation-chip" @onclick="() => ShowSource(citation)">[S@citation.Index]</span>
+                        }
+                    </div>
+                }
+                @if (!message.IsUser && message.Rationale is not null)
+                {
+                    <details class="rationale">
+                        <summary>Rationale</summary>
+                        <p>@message.Rationale</p>
+                    </details>
+                }
+            </div>
+        }
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading">
+            <div class="spinner"></div>
+            <span>Assistant is typing…</span>
+            <button class="btn-cancel" @onclick="CancelAsync">Cancel</button>
+        </div>
+    }
+
+    <div class="input-area">
+        <textarea @bind="questionText"
+                  @onkeydown="HandleKeyDown"
+                  placeholder="Type your question…"
+                  maxlength="4000"
+                  disabled="@isLoading"
+                  rows="3"></textarea>
+        <div class="input-footer">
+            <span class="char-count">@questionText.Length / 4000</span>
+            <button class="btn-send" @onclick="SendAsync" disabled="@isLoading || string.IsNullOrWhiteSpace(questionText)">
+                Send
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .chat-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px);
+    }
+
+    .chat-container h1 {
+        font-size: 2rem;
+        color: #1e3a5f;
+        text-align: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+        text-align: center;
+        color: #666;
+        margin-bottom: 2rem;
+    }
+
+    .welcome-message {
+        background-color: #f0f4f8;
+        padding: 2rem;
+        border-radius: 8px;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .welcome-message h2 {
+        color: #1e3a5f;
+        margin-bottom: 1rem;
+    }
+
+    .welcome-message ul {
+        list-style: none;
+        padding: 0;
+        text-align: left;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .welcome-message li {
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        background-color: white;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .welcome-message li:hover {
+        background-color: #e2e8f0;
+    }
+
+    .messages {
+        flex: 1;
+        overflow-y: auto;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .message {
+        padding: 1rem;
+        border-radius: 8px;
+        max-width: 80%;
+    }
+
+    .message.user {
+        align-self: flex-end;
+        background-color: #1e3a5f;
+        color: white;
+    }
+
+    .message.assistant {
+        align-self: flex-start;
+        background-color: #f0f4f8;
+        color: #333;
+    }
+
+    .message-header {
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .meta {
+        font-size: 0.75rem;
+        opacity: 0.7;
+        font-weight: normal;
+    }
+
+    .message-content {
+        line-height: 1.6;
+        white-space: pre-wrap;
+    }
+
+    .citations {
+        margin-top: 0.75rem;
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .citation-chip {
+        display: inline-block;
+        background-color: #1e3a5f;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .citation-chip:hover {
+        background-color: #162d4a;
+    }
+
+    .rationale {
+        margin-top: 0.75rem;
+        font-size: 0.9rem;
+        color: #666;
+    }
+
+    .rationale summary {
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .loading {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background-color: #f0f4f8;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 3px solid #ddd;
+        border-top-color: #1e3a5f;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .btn-cancel {
+        margin-left: auto;
+        padding: 0.5rem 1rem;
+        background-color: #dc2626;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .btn-cancel:hover {
+        background-color: #b91c1c;
+    }
+
+    .input-area {
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    textarea {
+        width: 100%;
+        border: none;
+        outline: none;
+        resize: none;
+        font-family: inherit;
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    textarea:disabled {
+        background-color: #f9fafb;
+    }
+
+    .input-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #eee;
+    }
+
+    .char-count {
+        font-size: 0.85rem;
+        color: #666;
+    }
+
+    .btn-send {
+        padding: 0.75rem 2rem;
+        background-color: #1e3a5f;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .btn-send:hover:not(:disabled) {
+        background-color: #162d4a;
+    }
+
+    .btn-send:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
+</style>
+
+@code {
+    private string questionText = string.Empty;
+    private bool isLoading;
+    private CancellationTokenSource? cts;
+    private readonly List<ChatMessage> messages = new();
+
+    private async Task SendAsync()
+    {
+        if (isLoading || string.IsNullOrWhiteSpace(questionText))
+            return;
+
+        var question = questionText.Trim();
+        questionText = string.Empty;
+        isLoading = true;
+        cts = new CancellationTokenSource();
+
+        // Add user message immediately
+        messages.Add(new ChatMessage { IsUser = true, Text = question });
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/api/ask", new { question }, cts.Token);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<AskResponse>(cancellationToken: cts.Token);
+                if (result is not null)
+                {
+                    messages.Add(new ChatMessage
+                    {
+                        IsUser = false,
+                        Text = result.Answer,
+                        CorrelationId = result.CorrelationId,
+                        AuditEntryId = result.AuditEntryId,
+                        Citations = result.Citations?.Select((c, i) => new Citation { Index = i + 1, ChunkId = c.ChunkId, DocumentId = c.DocumentId, Score = c.Score }).ToList(),
+                        Rationale = result.Rationale
+                    });
+                }
+            }
+            else
+            {
+                messages.Add(new ChatMessage
+                {
+                    IsUser = false,
+                    Text = $"Error: {(int)response.StatusCode} {response.ReasonPhrase}"
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            messages.Add(new ChatMessage
+            {
+                IsUser = false,
+                Text = "[Request cancelled]"
+            });
+        }
+        catch (Exception ex)
+        {
+            messages.Add(new ChatMessage
+            {
+                IsUser = false,
+                Text = $"Error: {ex.Message}"
+            });
+        }
+        finally
+        {
+            isLoading = false;
+            cts?.Dispose();
+            cts = null;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        if (cts is not null)
+        {
+            await cts.CancelAsync();
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        // Ctrl+Enter or Shift+Enter to send
+        if ((e.CtrlKey || e.ShiftKey) && e.Key == "Enter")
+        {
+            _ = SendAsync();
+        }
+    }
+
+    private void ShowSource(Citation citation)
+    {
+        // TODO: Open sources panel or navigate to document
+        Console.WriteLine($"Show source: Chunk {citation.ChunkId}, Document {citation.DocumentId}, Score {citation.Score:F3}");
+    }
+
+    private sealed class ChatMessage
+    {
+        public bool IsUser { get; init; }
+        public string Text { get; init; } = string.Empty;
+        public string? CorrelationId { get; init; }
+        public long? AuditEntryId { get; init; }
+        public List<Citation>? Citations { get; init; }
+        public string? Rationale { get; init; }
+    }
+
+    private sealed class Citation
+    {
+        public int Index { get; init; }
+        public long ChunkId { get; init; }
+        public long DocumentId { get; init; }
+        public double Score { get; init; }
+    }
+
+    private sealed class AskResponse
+    {
+        public string Answer { get; init; } = string.Empty;
+        public string? CorrelationId { get; init; }
+        public long? AuditEntryId { get; init; }
+        public List<SourceCitation>? Citations { get; init; }
+        public string? Rationale { get; init; }
+    }
+
+    private sealed class SourceCitation
+    {
+        public long ChunkId { get; init; }
+        public long DocumentId { get; init; }
+        public double Score { get; init; }
+    }
+}
