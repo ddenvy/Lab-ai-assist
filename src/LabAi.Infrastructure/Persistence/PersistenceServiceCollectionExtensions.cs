@@ -30,6 +30,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IUserStore, EfUserStore>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IDocumentRepository, EfDocumentRepository>();
         services.AddScoped<DbSeeder>();
 
         return services;
