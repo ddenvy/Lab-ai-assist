@@ -137,13 +137,28 @@ public sealed class EfDocumentRepositoryTests : IDisposable
         found!.Id.Should().Be(active.Id);
     }
 
+    [Fact]
+    public async Task ListActiveReturnsOnlyActiveRowsOrderedByTitle()
+    {
+        db.SourceDocuments.Add(Document(sourcePath: "docs/b.md", title: "SOP Бета"));
+        db.SourceDocuments.Add(Document(sourcePath: "docs/superseded.md", title: "SOP Альфа старая", status: DocumentStatus.Superseded));
+        db.SourceDocuments.Add(Document(sourcePath: "docs/a.md", title: "SOP Альфа"));
+        db.SaveChanges();
+        db.ChangeTracker.Clear();
+
+        var documents = await repository.ListActiveAsync();
+
+        documents.Select(d => d.Title).Should().Equal("SOP Альфа", "SOP Бета");
+    }
+
     private static SourceDocument Document(
         string sourcePath = "docs/sop.md",
+        string title = "SOP",
         string hash = "hash",
         DocumentStatus status = DocumentStatus.Active) => new()
     {
         SourcePath = sourcePath,
-        Title = "SOP",
+        Title = title,
         Version = 1,
         Kind = DocumentKind.Markdown,
         ContentHash = hash,

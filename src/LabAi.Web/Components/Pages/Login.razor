@@ -1,0 +1,30 @@
+@page "/login"
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>Вход</PageTitle>
+<h1>Вход</h1>
+
+@if (FailedAttempt)
+{
+    <p class="error">Неверное имя пользователя или пароль.</p>
+}
+
+<form method="post" action="/login">
+    <AntiforgeryToken />
+    <div class="field">
+        <label>Имя пользователя
+            <input name="username" required />
+        </label>
+    </div>
+    <div class="field">
+        <label>Пароль
+            <input name="password" type="password" required />
+        </label>
+    </div>
+    <button type="submit">Войти</button>
+</form>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public bool FailedAttempt { get; set; }
+}

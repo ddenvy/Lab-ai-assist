@@ -1,0 +1,152 @@
+@page "/documents"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject IDocumentRepository Repository
+@inject IDocumentIngestService Ingest
+@inject IUserStore UserStore
+
+<PageTitle>Документы</PageTitle>
+<h1>Документы</h1>
+
+@if (documents is null)
+{
+    <p>Загрузка…</p>
+}
+else if (documents.Count == 0)
+{
+    <p>Корпус пуст. Загрузите первый документ ниже.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Версия</th>
+                <th>Тип</th>
+                <th>Путь</th>
+                <th>Загружен</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var document in documents)
+            {
+                <tr>
+                    <td>@document.Title</td>
+                    <td>v@(document.Version)</td>
+                    <td>@document.Kind</td>
+                    <td>@document.SourcePath</td>
+                    <td>@document.IngestedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h2>Загрузка документа</h2>
+<div class="field">
+    <label>Название
+        <InputText @bind-Value="title" />
+    </label>
+    <label>Версия
+        <InputNumber @bind-Value="version" />
+    </label>
+</div>
+<InputFile OnChange="UploadAsync" accept=".md,.markdown,.csv,.json,.pdf" disabled="@uploading" />
+
+@if (lastResult is not null)
+{
+    <p class="success">
+        Документ #@lastResult.DocumentId: чанков @lastResult.ChunksCreated,
+        исход @(lastResult.Outcome == IngestOutcome.Duplicate ? "дубликат (содержимое не изменилось)" : "создан")@(lastResult.SupersededDocumentId is { } superseded ? $", заменён документ #{superseded}" : string.Empty).
+    </p>
+}
+@if (lastError is not null)
+{
+    <p class="error">@lastError</p>
+}
+
+@code {
+    private List<SourceDocument>? documents;
+    private string title = string.Empty;
+    private int version = 1;
+    private IngestResult? lastResult;
+    private string? lastError;
+    private bool uploading;
+
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs eventArgs)
+    {
+        lastError = null;
+        lastResult = null;
+
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            lastError = "Укажите название документа.";
+            return;
+        }
+
+        uploading = true;
+        try
+        {
+            var authenticationState = await AuthenticationStateTask;
+            var username = authenticationState.User.Identity?.Name
+                ?? throw new InvalidOperationException("Не удалось определить пользователя сессии.");
+            var user = await UserStore.FindByUsernameAsync(username)
+                ?? throw new InvalidOperationException("Пользователь сессии не найден в базе.");
+
+            var kind = KindFromFileName(eventArgs.File.Name)
+                ?? throw new InvalidOperationException(
+                    $"Тип файла {eventArgs.File.Name} не поддерживается. Разрешены .md, .csv, .json, .pdf.");
+
+            // OpenReadStream enforces the same browser-side cap as the API endpoint (10 MB).
+            await using var stream = eventArgs.File.OpenReadStream(10 * 1024 * 1024);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+
+            lastResult = await Ingest.IngestAsync(new IngestRequest(
+                eventArgs.File.Name,
+                title,
+                version,
+                kind,
+                buffer.ToArray(),
+                user.Id));
+
+            title = string.Empty;
+            version = 1;
+            await ReloadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or InvalidDataException)
+        {
+            lastError = exception.Message;
+        }
+        finally
+        {
+            uploading = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        documents = (await Repository.ListActiveAsync()).ToList();
+    }
+
+    private static DocumentKind? KindFromFileName(string fileName)
+    {
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".md" or ".markdown" => DocumentKind.Markdown,
+            ".csv" => DocumentKind.Csv,
+            ".json" => DocumentKind.Json,
+            ".pdf" => DocumentKind.Pdf,
+            _ => null,
+        };
+    }
+}

@@ -14,6 +14,9 @@ public interface IDocumentRepository
     /// <summary>Finds the active document loaded from this path, or null.</summary>
     Task<Entities.SourceDocument?> FindActiveBySourcePathAsync(string sourcePath, CancellationToken cancellationToken = default);
 
+    /// <summary>Current-version documents, ordered by title — the documents page and API listing.</summary>
+    Task<IReadOnlyList<Entities.SourceDocument>> ListActiveAsync(CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Inserts the document and its chunks and — in the same transaction — marks the previous
     /// active version superseded. <paramref name="buildChunks"/> is deferred on purpose: chunk rows

@@ -49,7 +49,7 @@ append-only аудита под Part 11. Формат `Mini-CDS\Reports\1.csv` �
 | Milestone | Описание | Статус |
 |-----------|----------|--------|
 | 1 | Semantic Kernel + базовый чат (каркас, .env, Serilog, Gemini-адаптеры) | ✅ Закрыт (32/32 offline + 5/5 live, 0 падений) |
-| 2 | Ingest: парсинг + чанки + метаданные | 🔨 В работе (части 1–6/7 закрыты, 155/155 offline) |
+| 2 | Ingest: парсинг + чанки + метаданные | ✅ Закрыт (156/156 offline + 5/5 live skip, 0 падений) |
 | 3 | Embeddings + vector store + поиск top-k | ⬜ Не начат |
 | 4 | Grounded-генерация + citations + «не знаю» | ⬜ Не начат |
 | 5 | AI Audit Log (append-only) + PII masking | ⬜ Не начат |
@@ -895,3 +895,75 @@ SQLite на репозитории.
 live), из них 3 новых. Milestone 2 — часть 6/7 закрыта, корпус и тест стабильности готовы.
 **Далее:** часть 7 — `POST /api/ingest` (multipart, Roles="Administrator,Analyst") и страница
 `/documents`, после чего Milestone 2 закрывается.
+
+### 2026-09-10 — Milestone 2, часть 7: POST /api/ingest, страница /documents и вход через браузер
+
+**План:** закрыть последнюю часть M2 — multipart-эндпоинт ингеста с ролевым ограничением, страницу
+`/documents` с таблицей и формой загрузки. В план части входили и pull-in'ы из M6(1): cookie auth
+и каркас Blazor пришлось поднять раньше, потому что ингест требует настоящего `IngestedByUserId`
+из аутентифицированного пользователя — вымышленный ActorUserId сделал бы GxP-нарратив декларативным
+(то же правило, по которому в M2 auth шёл перед ingest).
+
+**Сделано:**
+- `POST /api/ingest` ([Authorize Roles="Administrator,Analyst"]): валидация (файл null/пустой/
+  >10 МБ, пустой title, version < 1, неподдерживаемое расширение → 400 со словарём ошибок),
+  `GeminiNotConfiguredException` → 503 (зеркало контракта ChatEndpoints), ответ
+  `{ documentId, chunksCreated, outcome, supersededDocumentId }`. `.DisableAntiforgery()` —
+  осознанно: эндпоинт для внешних API-клиентов (связка A+C), CSRF закрыт SameSite=Strict cookie.
+- `GET /api/documents` → активные документы, упорядоченные по названию (`ListActiveAsync`
+  добавлен в `IDocumentRepository`/`EfDocumentRepository` + тест).
+- `AuthClaims.ToClaimsPrincipal` + `POST /api/auth/login|logout`; cookie: HttpOnly,
+  SameSite=Strict, 8 ч; `OnRedirectToLogin/AccessDenied` возвращают 401/403 вместо HTML-редиректа,
+  чтобы JSON-клиент не получал страницу логина в теле ответа.
+- Каркас Blazor: `App.razor` (lang="ru"), `Routes.razor` с `AuthorizeRouteView` +
+  `RedirectToLogin`, `MainLayout`, страницы `/` (описание) и `/login`.
+- `/documents` (InteractiveServer, [Authorize]): таблица активных документов, загрузка через
+  `InputFile`, имя пользователя берётся из `AuthenticationState` → `IUserStore` (claims в circuit
+  ненадёжны), ошибки парсера/пайплайна → баннер, после успеха — перезагрузка таблицы.
+- Форма входа — обычная HTML-форма с `<AntiforgeryToken />`, постящаяся на новый `POST /login`
+  (minimal API, редиректы `/login?error=1` → `/`). GET /login — маршрут компонента, POST /login —
+  эндпоинт; конфликтов нет.
+- Live-проверка curl'ом: 401 без cookie, 200 логин, 403 у `operator` на ингест, 400 на все
+  варианты валидации, Created/Duplicate идемпотентность, чанк-каунты совпали с закреплёнными
+  (6/2/1/7/6/6 по живым эмбеддингам), GET /api/documents упорядочен.
+- Браузерная проверка: логин analyst/demo123 → редирект на `/`, `/documents` показывает все
+  7 документов с версиями, аплоад SOP-QC-003 через форму → баннер «Документ #7: чанков 6,
+  исход создан», повторный аплоад того же файла → «чанков 0, исход дубликат».
+
+**Проблемы / ловушки:**
+- **Падение хоста на старте: «An action cannot use both form and JSON body parameters».**
+  Minimal API выводит источники привязки: параметры, чьи типы не зарегистрированы в DI,
+  считаются JSON Body. `IDocumentIngestService ingest` рядом с `[FromForm]`-параметрами был
+  выведен как Body → конфликт. Корень: `Program.cs` не вызывал `AddLabAiParsing/AddLabAiChunking/
+  AddLabAiIngest` — сервисы вообще не были зарегистрированы. Урок: эта ошибка компиляции не
+  ловится, она ловится только запуском хоста — smoke-запуск обязателен после любого эндпоинта.
+- **`[FromForm]` живёт в `Microsoft.AspNetCore.Mvc`, а не в Http.** В .NET 10 атрибут переехал
+  по пакетам; поиск по ref-пакетам (`grep -rl FromFormAttribute .../Microsoft.AspNetCore.App.Ref/
+  10.0*`) нашёл его в Mvc.Core.
+- **EditForm + `[SupplyParameterFromForm]` не забайндил поля, поля после сабмита invalid=true.**
+  Имена полей, генерируемые из выражения `Model="FormModel"`, не совпали с префиксом биндера
+  («Model.Username»), модель пришла пустой, серверная Required-валидация валила форму. Вместо
+  отладки генерации имён — смена подхода: обычная HTML-форма + антифорджери-токен + minimal API
+  `POST /login` с редиректами. Проще, детерминированнее, работает до подъёма circuit.
+- **Тихая смерть circuit: аплоад не срабатывал без единой ошибки нигде.** Страница рендерилась
+  (пререндеринг), но `InputFile.OnChange` не доходил до сервера. Причина двухслойная: (1) в
+  `App.razor` не было `<script src="_framework/blazor.web.js">`; (2) `dotnet run` без
+  launchSettings.json работает в Production, где static web assets отключены — лог прямо писал
+  «Static Web Assets are not enabled». Исправления: скрипт в `App.razor` +
+  `builder.WebHost.UseStaticWebAssets()` (no-op для published). Урок: интерактивный Blazor
+  ломается **молча** — признак «нет ни ошибки, ни результата» означает «событие не долетело»,
+  а не «обработчик упал».
+- **`v@document.Version` отрендерился буквально.** Razor считает `@` после буквенного символа
+  частью email-подобного текста (`v@document`), выражение не парсится. Фикс — явная скобочная
+  форма `v@(document.Version)`.
+- **Во время live-прогона curl ингест одного файла упал с 500** (`GeminiNotConfiguredException`
+  без ключа после рестарта), и SOP-QC-003 пропал из корпуса, пока я не догрузил его через UI.
+  Побочно это подтвердило fail-closed: без ключа документ не сохраняется наполовину.
+- **CWD между Bash-вызовами сохраняется** — curl с относительными путями в третий раз за проект
+  натыкается на это; правило: абсолютные пути или явный `cd` в той же команде.
+
+**Итог:** сборка **0 предупреждений, 0 ошибок**; **156/156 offline** (всего 161, из них 5 skipped
+live) — счётчик взят из вывода `dotnet test` немедленно после прогона. Live-матрица curl и
+браузерный сценарий пройдены полностью. **Milestone 2 закрыт целиком (7/7).**
+**Далее:** M3 — BLOB-кодирование + `VectorMath` (DOD, parity-тесты), затем `SearchIndex`/
+`BruteForceSearch`, `EfVectorStore` с snapshot swap и dimension guard.

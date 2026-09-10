@@ -29,6 +29,16 @@ public sealed class EfDocumentRepository(LabAiDbContext dbContext) : IDocumentRe
                 cancellationToken);
     }
 
+    public async Task<IReadOnlyList<SourceDocument>> ListActiveAsync(CancellationToken cancellationToken = default)
+    {
+        var documents = await dbContext.SourceDocuments
+            .AsNoTracking()
+            .Where(d => d.Status == DocumentStatus.Active)
+            .OrderBy(d => d.Title)
+            .ToListAsync(cancellationToken);
+        return documents;
+    }
+
     public async Task<long> AddAsync(
         SourceDocument document,
         Func<long, IReadOnlyList<Chunk>> buildChunks,

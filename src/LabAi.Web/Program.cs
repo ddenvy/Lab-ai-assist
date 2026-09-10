@@ -1,7 +1,12 @@
 using LabAi.Infrastructure.Ai;
+using LabAi.Infrastructure.Chunking;
+using LabAi.Infrastructure.Ingest;
+using LabAi.Infrastructure.Parsing;
 using LabAi.Infrastructure.Persistence;
+using LabAi.Web.Components;
 using LabAi.Web.Endpoints;
 using LabAi.Web.Infrastructure;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -20,6 +25,11 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    // Non-published runs (dotnet run) default to Production without launchSettings.json, where
+    // Blazor framework scripts (_framework/blazor.web.js) are otherwise not served and the
+    // interactive circuit silently never connects. A no-op for published output.
+    builder.WebHost.UseStaticWebAssets();
+
     builder.Host.UseSerilog(static (context, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .Enrich.FromLogContext());
@@ -35,6 +45,47 @@ try
         Directory.CreateDirectory(databaseDirectory);
 
     builder.Services.AddLabAiPersistence(connectionString);
+    builder.Services.AddLabAiParsing();
+    builder.Services.AddLabAiChunking(
+        builder.Configuration.GetValue("Rag:Chunking:MaxChunkChars", 2000),
+        builder.Configuration.GetValue("Rag:Chunking:OverlapChars", 200));
+    builder.Services.AddLabAiIngest(
+        builder.Configuration.GetValue("Rag:EmbeddingBatchSize", 16));
+
+    // The cookie is the single auth scheme by design: a Blazor Server circuit is a WebSocket that
+    // cannot carry an Authorization header, so one mechanism must cover JSON endpoints, SSR pages
+    // and the interactive circuit. SameSite=Strict is the cross-site POST defence that lets the
+    // ingest endpoint stay token-free for external API clients (Mini-CDS).
+    builder.Services
+        .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        .AddCookie(options =>
+        {
+            options.LoginPath = "/login";
+            options.AccessDeniedPath = "/login";
+            options.ExpireTimeSpan = TimeSpan.FromHours(8);
+            options.Cookie.Name = "LabAi.Auth";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+
+            // JSON API endpoints must receive a status code, not a login-page redirect: a client
+            // that never renders HTML would otherwise turn 401 into a confusing HTML body.
+            options.Events.OnRedirectToLogin = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            };
+            options.Events.OnRedirectToAccessDenied = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            };
+        });
+
+    builder.Services.AddAuthorization();
+    builder.Services.AddCascadingAuthenticationState();
+
+    builder.Services.AddRazorComponents()
+        .AddInteractiveServerComponents();
 
     var gemini = GeminiOptionsFactory.Create(builder.Configuration);
     builder.Services.AddSingleton(gemini);
@@ -86,11 +137,23 @@ try
     // "Request finished" line without a CorrelationId.
     app.UseSerilogRequestLogging();
 
-    app.MapGet("/", static () => Results.Text("Lab AI Assistant", "text/plain; charset=utf-8"));
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // Blazor SSR form posts (login) carry antiforgery tokens; without the middleware they are
+    // rejected. Must sit after authentication so the token validation sees the full context.
+    app.UseAntiforgery();
+
+    app.MapStaticAssets();
     app.MapHealthEndpoints();
 
     // Temporary smoke endpoint for the Gemini wiring; replaced by POST /api/ask in Milestone 4.
     app.MapChatEndpoints();
+    app.MapAuthEndpoints();
+    app.MapIngestEndpoints();
+
+    app.MapRazorComponents<App>()
+        .AddInteractiveServerRenderMode();
 
     Log.Information("LabAi host starting");
     app.Run();
