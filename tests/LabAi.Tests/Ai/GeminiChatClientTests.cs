@@ -1,3 +1,4 @@
+using System.Net;
 using LabAi.Infrastructure.Ai;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.SemanticKernel;
@@ -107,8 +108,75 @@ public sealed class GeminiChatClientTests
         token.Should().Be(cts.Token, "a cancelled Blazor circuit must abort the paid call");
     }
 
+    [Fact]
+    public async Task RetriesATransientServiceUnavailable_ThenReturnsTheAnswer()
+    {
+        var client = ClientWith(FailingThenReplying(HttpStatusCode.ServiceUnavailable));
+
+        var result = await client.CompleteAsync("system", "user");
+
+        result.Text.Should().Be("the model answer");
+    }
+
+    [Fact]
+    public async Task RethrowsTheTransientError_OnceRetriesAreExhausted()
+    {
+        var service = Failing(HttpStatusCode.ServiceUnavailable);
+        var client = ClientWith(service);
+
+        var act = () => client.CompleteAsync("system", "user");
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    [Fact]
+    public async Task DoesNotRetryANonTransientBadRequest()
+    {
+        var service = Failing(HttpStatusCode.BadRequest);
+        var client = ClientWith(service);
+
+        var act = () => client.CompleteAsync("system", "user");
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+        await service.Received(1).GetChatMessageContentsAsync(
+            Arg.Any<ChatHistory>(),
+            Arg.Any<PromptExecutionSettings>(),
+            Arg.Any<Kernel>(),
+            Arg.Any<CancellationToken>());
+    }
+
     private static GeminiChatClient ClientWith(IChatCompletionService service) =>
         new(Configured, () => service, NullLogger<GeminiChatClient>.Instance);
+
+    private static IChatCompletionService Failing(HttpStatusCode status)
+    {
+        var service = Substitute.For<IChatCompletionService>();
+        service.GetChatMessageContentsAsync(
+                Arg.Any<ChatHistory>(),
+                Arg.Any<PromptExecutionSettings>(),
+                Arg.Any<Kernel>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Task<IReadOnlyList<ChatMessageContent>>>(
+                _ => Task.FromException<IReadOnlyList<ChatMessageContent>>(
+                    new HttpRequestException("upstream", null, status)));
+        return service;
+    }
+
+    private static IChatCompletionService FailingThenReplying(HttpStatusCode status)
+    {
+        var service = Substitute.For<IChatCompletionService>();
+        service.GetChatMessageContentsAsync(
+                Arg.Any<ChatHistory>(),
+                Arg.Any<PromptExecutionSettings>(),
+                Arg.Any<Kernel>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromException<IReadOnlyList<ChatMessageContent>>(
+                    new HttpRequestException("upstream", null, status)),
+                Task.FromResult<IReadOnlyList<ChatMessageContent>>(
+                    [new ChatMessageContent(AuthorRole.Assistant, "the model answer")]));
+        return service;
+    }
 
     private static IChatCompletionService Replying(params ChatMessageContent[] candidates)
     {

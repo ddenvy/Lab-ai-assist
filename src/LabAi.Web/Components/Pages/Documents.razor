@@ -49,13 +49,22 @@
     <div class="upload-form">
         <div class="field">
             <label>Title
-                <InputText @bind-Value="title" />
+                <input type="text" @bind="title" @bind:event="oninput" />
             </label>
             <label>Version
                 <InputNumber @bind-Value="version" />
             </label>
         </div>
-        <InputFile OnChange="UploadAsync" accept=".md,.markdown,.csv,.json,.pdf" disabled="@uploading" />
+        <div class="file-row">
+            <InputFile OnChange="OnFileSelected" accept=".md,.markdown,.csv,.json,.pdf" disabled="@uploading" />
+            @if (selectedFile is not null)
+            {
+                <span class="file-name">@selectedFile.Name</span>
+            }
+            <button class="btn-upload" @onclick="UploadAsync" disabled="@(!CanUpload)">
+                @(uploading ? "Uploading…" : "Upload")
+            </button>
+        </div>
     </div>
 
     @if (lastResult is not null)
@@ -157,6 +166,39 @@
         box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.1);
     }
 
+    .file-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .file-name {
+        color: #333;
+        font-weight: 500;
+    }
+
+    .btn-upload {
+        padding: 0.75rem 2rem;
+        background-color: #1e3a5f;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .btn-upload:hover:not(:disabled) {
+        background-color: #162d4a;
+    }
+
+    .btn-upload:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
+
     .success {
         color: #16a34a;
         background-color: #f0fdf4;
@@ -183,6 +225,9 @@
     private IngestResult? lastResult;
     private string? lastError;
     private bool uploading;
+    private IBrowserFile? selectedFile;
+
+    private bool CanUpload => !uploading && selectedFile is not null && !string.IsNullOrWhiteSpace(title);
 
     [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
 
@@ -191,8 +236,16 @@
         await ReloadAsync();
     }
 
-    private async Task UploadAsync(InputFileChangeEventArgs eventArgs)
+    private void OnFileSelected(InputFileChangeEventArgs eventArgs)
     {
+        selectedFile = eventArgs.File;
+    }
+
+    private async Task UploadAsync()
+    {
+        if (selectedFile is null)
+            return;
+
         lastError = null;
         lastResult = null;
 
@@ -211,17 +264,16 @@
             var user = await UserStore.FindByUsernameAsync(username)
                 ?? throw new InvalidOperationException("Session user not found in database.");
 
-            var kind = KindFromFileName(eventArgs.File.Name)
+            var kind = KindFromFileName(selectedFile.Name)
                 ?? throw new InvalidOperationException(
-                    $"File type {eventArgs.File.Name} is not supported. Allowed: .md, .csv, .json, .pdf.");
+                    $"File type {selectedFile.Name} is not supported. Allowed: .md, .csv, .json, .pdf.");
 
-            // OpenReadStream enforces the same browser-side cap as the API endpoint (10 MB).
-            await using var stream = eventArgs.File.OpenReadStream(10 * 1024 * 1024);
+            await using var stream = selectedFile.OpenReadStream(10 * 1024 * 1024);
             using var buffer = new MemoryStream();
             await stream.CopyToAsync(buffer);
 
             lastResult = await Ingest.IngestAsync(new IngestRequest(
-                eventArgs.File.Name,
+                selectedFile.Name,
                 title,
                 version,
                 kind,
@@ -230,6 +282,7 @@
 
             title = string.Empty;
             version = 1;
+            selectedFile = null;
             await ReloadAsync();
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or InvalidDataException)

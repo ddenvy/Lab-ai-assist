@@ -1144,3 +1144,105 @@ Milestone 3 — часть 4/4 закрыта. **Milestone 3 полностью 
 **Далее:** M4 — Grounded generation: `PromptComposer` с RU system prompt, `PromptHasher`, `RefusalDetector`
 (threshold gate + фраза отказа), `RagQueryPipeline` с fail-closed порядком аудита, замена `/api/chat` на
 `POST /api/ask`.
+
+### 2026-09-10 — Ручное E2E-тестирование в Docker: починка UI-биндингов и EF-backed audit trail (пробел M5)
+
+> Записи M4–M7 в этот лог не вносились по ходу работы; ниже зафиксирован только конкретный сеанс
+> ручного тестирования «по ручкам» и найденные/устранённые дефекты.
+
+**Контекст:** пользователь собирает и запускает приложение исключительно через `docker-compose`
+(`http://localhost:5000`), локальный `dotnet run` запрещён. Все проверки выполнялись в браузере
+через browser-use MCP против живого контейнера.
+
+**Сделано:**
+- **Documents/Chat: починены «вечно неактивные» кнопки.** Корень — не выражение `disabled`, а падение
+  Blazor-circuit на первом же нажатии клавиши. Заменил component-биндинг `InputText` на обычный
+  `<input @bind="title" @bind:event="oninput">` и `<textarea @bind="questionText" @bind:event="oninput">`.
+  Кнопка Upload теперь управляется вычисляемым `CanUpload => !uploading && selectedFile is not null &&
+  !string.IsNullOrWhiteSpace(title)`; Send активируется от непустого текста.
+- **Chat: оживлён клик по цитате.** `ShowSource(Citation)` вместо `Console.WriteLine`-заглушки читает чанк
+  через `IDocumentRepository.GetChunksByIdsAsync` и рендерит `SourcesPanel` с заголовком документа, версией,
+  `SectionPath`, текстом чанка и `Score`.
+- **Dockerfile: добавлен `-p:GenerateStaticWebAssets=true`** к `dotnet publish` — без него в образе не было
+  `_framework/blazor.web.js` (404 → circuit не стартует).
+- **M5 gap: EF-backed append-only audit trail вместо in-memory заглушки.** Новая сущность `AiAuditEntry`,
+  `AiAuditEntryConfiguration` (таблица `ai_audit_entries`, индексы по `TimestampUtc`/`CorrelationId`),
+  `EfAiAuditTrail` на `IDbContextFactory<LabAiDbContext>` с hash-chain (`RowHash = SHA256` от
+  length-prefixed полей + `PrevHash`, genesis = 64 нуля), DI-подмена `StubAiAuditTrail` → `EfAiAuditTrail`
+  (заглушка удалена), миграция `20260910134221_AddAiAuditTrail` с SQLite-триггерами `RAISE(ABORT)`
+  на `UPDATE`/`DELETE`.
+
+**Проблемы / ловушки:**
+- **«Неактивная кнопка» на самом деле = мёртвый circuit.** Симптом выглядел как ошибка в выражении
+  `disabled`, но `docker logs` показал `System.ArgumentException: Object of type 'ChangeEventArgs' cannot
+  be converted to type 'System.String'`. Неправильный синтаксис биндинга (`@bind-Value:event` на компоненте /
+  `@bind-value:event` на элементе) ронял circuit на первом `oninput`, поэтому ре-рендера не происходило вовсе.
+  Валиден только элементный `@bind` + `@bind:event="oninput"`.
+- **Razor принимает `S@citation.Index` за email-адрес** и рендерит буквально. Обход — явные скобки:
+  `[S@(citation.Index)]`, `v@(Citation.Version)`.
+- **`///` XML-doc комментарии в .razor-разметке** (вне `@code`) выводятся как видимый текст страницы —
+  из `SourcesPanel.razor` пришлось убрать.
+- **В контейнере не было `blazor.web.js`.** `dotnet publish` по умолчанию не генерирует static web assets
+  для Blazor Server; лечится `-p:GenerateStaticWebAssets=true`.
+- **DataProtection-ключи живут в ФС контейнера**: при `docker-compose up --force-recreate` cookie
+  авторизации инвалидируется (401 «Unprotect ticket failed») и нужен повторный вход. При обычном
+  `docker-compose restart` контейнер не пересоздаётся, ключи и данные в volume сохраняются — запись аудита
+  пережила рестарт.
+- **Лок-файлы bin/Debug (MSB3027/MSB3021)** от зависших локальных процессов `dotnet run` ломали
+  `dotnet ef migrations add`; снято `powershell -Command "Stop-Process -Id <pid> -Force"`.
+- **Проверка БД без sqlite3/python на хосте:** Windows-`python3` — это store-заглушка, а `/tmp` в Git Bash
+  не шарится в Docker Desktop как `/tmp`. Рабочий путь — смонтировать реальный
+  `C:/Users/Danny/AppData/Local/Temp` и запустить `docker run -i python:3.12-slim` (флаг `-i` обязателен
+  для heredoc через stdin); WAL/SHM нужно копировать вместе с `lab.db`.
+
+**Итог:** сборка **0 ошибок**, offline-набор **215/215**. Прогнано вручную в браузере: login →
+Documents (Upload активируется только при title+файле, ингест «1 chunks, source created») → Chat
+(«What is the HPLC flow rate?» → «1.0 mL/min [S1]», Correlation ID, Audit ID #1, клик по [S1] открывает
+SourcesPanel: Test SOP v1, Score 0.658) → Audit (строка ID 1) → `docker-compose restart labai` →
+строка аудита на месте. На уровне БД подтверждено: триггеры `ai_audit_entries_no_update` /
+`ai_audit_entries_no_delete` блокируют UPDATE и DELETE (`RAISE(ABORT, 'ai_audit_entries is append-only…')`),
+`PrevHash` = 64 нуля (genesis), `RowHash` заполнен. Задача #8 (EF-backed audit trail) закрыта.
+**Ограничения (осознанно не чинились):** rate limiter — TODO в `Program.cs`; DataProtection-ключи не
+вынесены в volume → logout при `--force-recreate`.
+
+### 2026-09-10 — Транзиентный Gemini 503: ретраи + журналируемый graceful-отказ
+
+**Симптом (скриншот пользователя):** в чате вместо ответа — сырое
+`Error: Response status code does not indicate success: 503 (Service Unavailable)`.
+
+**Диагноз:** 503 — транзиентная перегрузка апстрима (embeddings при этом прошли, падал именно вызов
+генерации). Два дефекта: (1) `GeminiChatClient` не делал ретраев, ошибка сразу летела наружу;
+(2) запись аудита в `RagQueryPipeline` стоит ПОСЛЕ вызова LLM (шаг 8), поэтому исключение на шаге 5
+обрывало запрос и упавший вопрос **вообще не попадал в журнал** — прямое нарушение «every query is
+logged».
+
+**Сделано:**
+- `GeminiChatClient` — ограниченные ретраи с экспоненциальной задержкой (до 3 попыток, backoff 500 мс /
+  1 с) для транзиентных `HttpRequestException`: 500/502/503/504/429/408 и сетевых без status code.
+  Нетранзиентные (400 и т.п.) и исчерпанные попытки пробрасываются как раньше; токен отмены honoured.
+- `RefusalStage` — новое значение `UpstreamFailure`.
+- `RagQueryPipeline` — вызов LLM обёрнут в `try/catch (Exception e) when (e is not OperationCanceledException)`:
+  при сбое апстрима возвращается дружелюбный отказ `UpstreamFailureAnswer`, стадия `UpstreamFailure`,
+  и шаг 8 всё равно пишет строку аудита (fail-closed: ни один запрос не исчезает). Отмена по-прежнему
+  пробрасывается в ветку UI «[Request cancelled]».
+- Тесты (+5): ретрай транзиентного 503 → успех; проброс после исчерпания попыток; отсутствие ретрая на 400;
+  `RagQueryPipelineTests` — сбой апстрима пишет черновик аудита со стадией `UpstreamFailure` и возвращает
+  graceful-отказ; отмена пробрасывается как `OperationCanceledException`.
+
+**Проблемы / ловушки:**
+- **Запись аудита стояла после вызова LLM.** Из-за этого любой сбой генерации молча ронял запрос из
+  журнала. Лечится не переносом аудита (ему нужны результаты retrieval), а поимкой сбоя вокруг шага 5 и
+  гарантированной записью на шаге 8.
+- **`PromptHash` намеренно не вычисляется при сбое.** Он зависит от `ModelId`, который известен только из
+  ответа модели; при упавшем вызове модели нет, поэтому hash пуст, а `Model` = `unknown` — честно, без
+  фабрики «доказательства» для ответа, которого не было.
+- **E2E-доказательство graceful-пути без правки файлов.** Форсировать настоящий 503 нельзя, но compose
+  подставляет `GEMINI_MODEL=${GEMINI_MODEL:-…}` из окружения: `GEMINI_MODEL=gemini-does-not-exist
+  docker-compose up -d` даёт 404 (нетранзиентный) → тот же catch-путь. После проверки контейнер пересоздан
+  без переменной → модель вернулась к `gemini-3.5-flash`.
+
+**Итог:** сборка **0 ошибок**, offline-набор **215/215** (включая 5 новых). Проверено в браузере против
+Docker: happy path после ретраев не сломан (ответ «1.0 mL/min [S1]», citations, Audit ID); при битой модели
+UI показывает «The language model is temporarily unavailable… Your question was recorded in the audit
+journal», а `/audit` содержит строку `Refusal: UpstreamFailure`, `Answered: No`, `Model: unknown` — упавший
+запрос больше не теряется. Задача #9 закрыта.

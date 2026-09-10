@@ -85,6 +85,7 @@ try
 
     builder.Services.AddAuthorization();
     builder.Services.AddCascadingAuthenticationState();
+    builder.Services.AddHttpContextAccessor();
 
     // Rate limiter: 10 requests per minute per authenticated user (deferred to M5 due to .NET 10 API changes).
     // TODO: Re-enable with correct .NET 10 syntax.
@@ -112,8 +113,8 @@ try
         ragConfig.GetValue("TopK", 5),
         ragConfig.GetValue("MinScore", 0.35)));
 
-    // AI audit trail — stub for M4, real implementation in M5.
-    builder.Services.AddSingleton<IAiAuditTrail, StubAiAuditTrail>();
+    // AI audit trail: EF-backed append-only journal with a hash chain (M5).
+    builder.Services.AddSingleton<IAiAuditTrail, EfAiAuditTrail>();
 
     if (!gemini.IsConfigured)
     {

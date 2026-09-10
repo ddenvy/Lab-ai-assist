@@ -13,6 +13,9 @@ namespace LabAi.Application.Rag;
 /// </summary>
 public sealed class RagQueryPipeline : IRagQueryService
 {
+    private const string UpstreamFailureAnswer =
+        "The language model is temporarily unavailable. Your question was recorded in the audit journal; please try again shortly.";
+
     private readonly IEmbeddingService embeddings;
     private readonly IVectorStore vectorStore;
     private readonly IGroundedChatClient chat;
@@ -118,21 +121,31 @@ public sealed class RagQueryPipeline : IRagQueryService
             // 4. Compose the grounded prompt.
             var (userPrompt, citations) = PromptComposer.Compose(question, retrievedChunks);
 
-            // 5. Call the LLM.
-            chatResult = await chat.CompleteAsync(
-                systemPrompt: PromptComposer.SystemPrompt,
-                userPrompt: userPrompt,
-                cancellationToken);
+            // 5. Call the LLM. A failed call (e.g. a transient 503 that survived the adapter's retries)
+            //    must not abort the request before step 8: the query still has to land in the journal.
+            //    Cancellation is rethrown so the UI's "[Request cancelled]" branch keeps working.
+            try
+            {
+                chatResult = await chat.CompleteAsync(
+                    systemPrompt: PromptComposer.SystemPrompt,
+                    userPrompt: userPrompt,
+                    cancellationToken);
 
-            answer = chatResult.Text;
-            var modelId = chatResult.ModelId;
+                answer = chatResult.Text;
+                var modelId = chatResult.ModelId;
 
-            // 6. Compute prompt hash for audit evidence.
-            promptHash = PromptHasher.Compute(PromptComposer.SystemPrompt, userPrompt, modelId);
+                // 6. Compute prompt hash for audit evidence.
+                promptHash = PromptHasher.Compute(PromptComposer.SystemPrompt, userPrompt, modelId);
 
-            // 7. Detect refusal and extract rationale.
-            refusalStage = RefusalDetector.DetermineStage(hadRetrievedChunks, answer);
-            rationale = RefusalDetector.ExtractRationale(answer);
+                // 7. Detect refusal and extract rationale.
+                refusalStage = RefusalDetector.DetermineStage(hadRetrievedChunks, answer);
+                rationale = RefusalDetector.ExtractRationale(answer);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                answer = UpstreamFailureAnswer;
+                refusalStage = RefusalStage.UpstreamFailure;
+            }
         }
 
         // 8. Write audit entry BEFORE returning the answer (fail-closed).

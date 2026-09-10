@@ -1,14 +1,10 @@
 @using LabAi.Domain.ValueObjects
 
-/// <summary>
-/// Displays detailed citation information for a single source chunk referenced in an answer.
-/// Shows the document title, version, section path, and the actual chunk text.
-/// </summary>
 <div class="source-panel">
     <div class="source-header">
-        <span class="citation-tag">[S@Citation.Index]</span>
+        <span class="citation-tag">[S@(Citation.Index)]</span>
         <span class="document-title">@Citation.DocumentTitle</span>
-        <span class="version-badge">v@Citation.Version</span>
+        <span class="version-badge">v@(Citation.Version)</span>
     </div>
     <div class="section-path">@Citation.SectionPath</div>
     <div class="chunk-text">@Citation.Text</div>

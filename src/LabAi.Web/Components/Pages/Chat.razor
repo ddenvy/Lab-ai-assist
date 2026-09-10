@@ -1,7 +1,10 @@
 @page "/chat"
 @rendermode InteractiveServer
 @attribute [Authorize]
-@inject HttpClient Http
+@inject IRagQueryService RagService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IUserStore UserStore
+@inject IDocumentRepository DocumentRepository
 
 <PageTitle>Chat - Laboratory Assistant</PageTitle>
 
@@ -44,7 +47,7 @@
                         <strong>Sources:</strong>
                         @foreach (var citation in message.Citations)
                         {
-                            <span class="citation-chip" @onclick="() => ShowSource(citation)">[S@citation.Index]</span>
+                            <span class="citation-chip" @onclick="() => ShowSource(citation)">[S@(citation.Index)]</span>
                         }
                     </div>
                 }
@@ -68,8 +71,14 @@
         </div>
     }
 
+    @if (selectedSource is not null)
+    {
+        <SourcesPanel Citation="selectedSource" />
+    }
+
     <div class="input-area">
         <textarea @bind="questionText"
+                  @bind:event="oninput"
                   @onkeydown="HandleKeyDown"
                   placeholder="Type your question…"
                   maxlength="4000"
@@ -77,7 +86,7 @@
                   rows="3"></textarea>
         <div class="input-footer">
             <span class="char-count">@questionText.Length / 4000</span>
-            <button class="btn-send" @onclick="SendAsync" disabled="@isLoading || string.IsNullOrWhiteSpace(questionText)">
+            <button class="btn-send" @onclick="SendAsync" disabled="@(isLoading || string.IsNullOrWhiteSpace(questionText))">
                 Send
             </button>
         </div>
@@ -319,6 +328,7 @@
     private bool isLoading;
     private CancellationTokenSource? cts;
     private readonly List<ChatMessage> messages = new();
+    private SourceCitationDetail? selectedSource;
 
     private async Task SendAsync()
     {
@@ -335,32 +345,40 @@
 
         try
         {
-            var response = await Http.PostAsJsonAsync("/api/ask", new { question }, cts.Token);
+            // Get current user ID from authentication context
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext?.User?.Identity?.Name is null)
+            {
+                messages.Add(new ChatMessage { IsUser = false, Text = "Error: User not authenticated." });
+                return;
+            }
 
-            if (response.IsSuccessStatusCode)
+            var username = httpContext.User.Identity.Name;
+            var user = await UserStore.FindByUsernameAsync(username);
+            if (user is null)
             {
-                var result = await response.Content.ReadFromJsonAsync<AskResponse>(cancellationToken: cts.Token);
-                if (result is not null)
-                {
-                    messages.Add(new ChatMessage
-                    {
-                        IsUser = false,
-                        Text = result.Answer,
-                        CorrelationId = result.CorrelationId,
-                        AuditEntryId = result.AuditEntryId,
-                        Citations = result.Citations?.Select((c, i) => new Citation { Index = i + 1, ChunkId = c.ChunkId, DocumentId = c.DocumentId, Score = c.Score }).ToList(),
-                        Rationale = result.Rationale
-                    });
-                }
+                messages.Add(new ChatMessage { IsUser = false, Text = "Error: User not found in database." });
+                return;
             }
-            else
+
+            var correlationId = Guid.NewGuid().ToString("N");
+            var result = await RagService.AskAsync(question, user.Id, correlationId, cts.Token);
+
+            messages.Add(new ChatMessage
             {
-                messages.Add(new ChatMessage
-                {
-                    IsUser = false,
-                    Text = $"Error: {(int)response.StatusCode} {response.ReasonPhrase}"
-                });
-            }
+                IsUser = false,
+                Text = result.Answer,
+                CorrelationId = result.CorrelationId,
+                AuditEntryId = result.AuditEntryId,
+                Citations = result.Citations.Select((c, i) => new Citation 
+                { 
+                    Index = c.Index, 
+                    ChunkId = c.ChunkId, 
+                    DocumentId = c.DocumentId, 
+                    Score = c.Score 
+                }).ToList(),
+                Rationale = result.Rationale
+            });
         }
         catch (OperationCanceledException)
         {
@@ -403,10 +421,21 @@
         }
     }
 
-    private void ShowSource(Citation citation)
+    private async Task ShowSource(Citation citation)
     {
-        // TODO: Open sources panel or navigate to document
-        Console.WriteLine($"Show source: Chunk {citation.ChunkId}, Document {citation.DocumentId}, Score {citation.Score:F3}");
+        var chunks = await DocumentRepository.GetChunksByIdsAsync([citation.ChunkId]);
+        if (!chunks.TryGetValue(citation.ChunkId, out var chunk) || chunk.Document is null)
+            return;
+
+        selectedSource = new SourceCitationDetail(
+            citation.Index,
+            chunk.Id,
+            chunk.DocumentId,
+            chunk.Document.Title,
+            chunk.Document.Version,
+            chunk.SectionPath,
+            chunk.Text,
+            citation.Score);
     }
 
     private sealed class ChatMessage
@@ -422,22 +451,6 @@
     private sealed class Citation
     {
         public int Index { get; init; }
-        public long ChunkId { get; init; }
-        public long DocumentId { get; init; }
-        public double Score { get; init; }
-    }
-
-    private sealed class AskResponse
-    {
-        public string Answer { get; init; } = string.Empty;
-        public string? CorrelationId { get; init; }
-        public long? AuditEntryId { get; init; }
-        public List<SourceCitation>? Citations { get; init; }
-        public string? Rationale { get; init; }
-    }
-
-    private sealed class SourceCitation
-    {
         public long ChunkId { get; init; }
         public long DocumentId { get; init; }
         public double Score { get; init; }

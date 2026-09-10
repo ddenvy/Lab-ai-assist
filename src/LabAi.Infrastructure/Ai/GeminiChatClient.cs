@@ -1,3 +1,4 @@
+using System.Net;
 using LabAi.Domain.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -22,6 +23,16 @@ public sealed class GeminiChatClient(
     Func<IChatCompletionService> resolveService,
     ILogger<GeminiChatClient> logger) : IGroundedChatClient
 {
+    // Gemini answers 503 with a plain overload page whenever a free-tier quota window rolls over;
+    // a single immediate retry usually lands. Three attempts keeps the worst added latency ~1.5 s.
+    private const int MaxAttempts = 3;
+
+    private static readonly TimeSpan[] Backoff =
+    [
+        TimeSpan.FromMilliseconds(500),
+        TimeSpan.FromSeconds(1),
+    ];
+
     public async Task<GroundedChatResult> CompleteAsync(
         string systemPrompt,
         string userPrompt,
@@ -34,9 +45,24 @@ public sealed class GeminiChatClient(
         history.AddSystemMessage(systemPrompt);
         history.AddUserMessage(userPrompt);
 
-        var contents = await resolveService()
-            .GetChatMessageContentsAsync(history, ExecutionSettings(), cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        IReadOnlyList<ChatMessageContent> contents = [];
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                contents = await resolveService()
+                    .GetChatMessageContentsAsync(history, ExecutionSettings(), cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            }
+            catch (HttpRequestException ex) when (IsTransient(ex) && attempt < MaxAttempts)
+            {
+                logger.LogWarning(
+                    "Gemini chat attempt {Attempt}/{MaxAttempts} hit transient {StatusCode}; retrying after backoff",
+                    attempt, MaxAttempts, ex.StatusCode?.ToString() ?? "network-error");
+                await Task.Delay(Backoff[attempt - 1], cancellationToken).ConfigureAwait(false);
+            }
+        }
 
         if (contents.Count == 0)
         {
@@ -57,6 +83,15 @@ public sealed class GeminiChatClient(
 
         return new GroundedChatResult(text, options.ChatModelId);
     }
+
+    private static bool IsTransient(HttpRequestException ex) =>
+        ex.StatusCode is null
+            or HttpStatusCode.RequestTimeout
+            or HttpStatusCode.TooManyRequests
+            or HttpStatusCode.InternalServerError
+            or HttpStatusCode.BadGateway
+            or HttpStatusCode.ServiceUnavailable
+            or HttpStatusCode.GatewayTimeout;
 
     private static GeminiPromptExecutionSettings ExecutionSettings() => new()
     {

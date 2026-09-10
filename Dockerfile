@@ -15,7 +15,7 @@ RUN dotnet restore "src/LabAi.Web/LabAi.Web.csproj"
 
 # Copy source code and build
 COPY . .
-RUN dotnet publish "src/LabAi.Web/LabAi.Web.csproj" -c Release -o /app/publish --no-restore
+RUN dotnet publish "src/LabAi.Web/LabAi.Web.csproj" -c Release -o /app/publish -p:GenerateStaticWebAssets=true
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
