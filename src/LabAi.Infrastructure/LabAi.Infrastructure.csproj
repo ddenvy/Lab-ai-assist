@@ -20,6 +20,9 @@
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.80.1" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" Version="1.80.1-alpha" />
 
+    <!-- iText7 rejected: AGPL. PdfPig is Apache-2.0; id is exactly "PdfPig" (namespace is UglyToad.PdfPig). -->
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+
     <!-- EF Core version matches Mini-CDS so both projects resolve one shared graph. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">

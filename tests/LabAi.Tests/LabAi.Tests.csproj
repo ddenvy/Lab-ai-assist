@@ -15,6 +15,10 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
     <!--
+      Builds 2-page PDF fixtures in memory for PdfPigPdfParserTests; never used by product code.
+    -->
+    <PackageReference Include="QuestPDF" Version="2024.12.1" />
+    <!--
       xunit 2.9.3 has no Assert.Skip: its own XML docs state dynamic skipping "only works in v3 and
       later". The live Gemini suite needs it to report a genuine Skipped result when GEMINI_API_KEY
       is absent, instead of either failing or silently passing.
