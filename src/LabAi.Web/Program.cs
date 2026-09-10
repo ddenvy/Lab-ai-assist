@@ -127,6 +127,24 @@ try
             // logs/labai-*.log. Unreachable while Demo:Password is configured, which is the normal case.
             Console.WriteLine($"Generated password for '{user.Username}': {user.Password}");
         }
+
+        // Rebuild vector index on startup so /health reports size and dimension even before any ingest.
+        var vectorStore = scope.ServiceProvider.GetRequiredService<LabAi.Domain.Abstractions.IVectorStore>();
+        try
+        {
+            await vectorStore.RebuildAsync();
+            var snapshot = vectorStore.Snapshot;
+            Log.Information(
+                "Vector index rebuilt: {Count} vectors, dimension {Dimension}",
+                snapshot.Count,
+                snapshot.Dimension);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Dimension guard fired: mixed models/dimensions in the store. The app still starts so that
+            // non-AI routes work, but search will refuse to serve until re-ingest with one model.
+            Log.Error(ex, "Vector index contains embeddings from multiple model/dimension pairs. Search disabled.");
+        }
     }
 
     // First in the pipeline so every downstream log line carries the id.

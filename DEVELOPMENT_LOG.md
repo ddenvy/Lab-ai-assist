@@ -50,7 +50,7 @@ append-only аудита под Part 11. Формат `Mini-CDS\Reports\1.csv` �
 |-----------|----------|--------|
 | 1 | Semantic Kernel + базовый чат (каркас, .env, Serilog, Gemini-адаптеры) | ✅ Закрыт (32/32 offline + 5/5 live, 0 падений) |
 | 2 | Ingest: парсинг + чанки + метаданные | ✅ Закрыт (156/156 offline + 5/5 live skip, 0 падений) |
-| 3 | Embeddings + vector store + поиск top-k | ⬜ Не начат |
+| 3 | Embeddings + vector store + поиск top-k | ✅ Закрыт (183/183 offline, 0 падений) |
 | 4 | Grounded-генерация + citations + «не знаю» | ⬜ Не начат |
 | 5 | AI Audit Log (append-only) + PII masking | ⬜ Не начат |
 | 6 | UI: чат + панель источников + журнал аудита | ⬜ Не начат |
@@ -1108,3 +1108,39 @@ dependency; неизменяемый снапшот публикуется че�
 **Далее:** часть 4 — подключить `RebuildAsync()` на старте приложения (Program.cs после DbSeeder), расширить
 `/health` endpoint информацией о размере индекса и размерности, написать EfVectorStoreTests (BLOB round-trip,
 исключение superseded документов, dimension guard, atomic snapshot swap).
+
+### 2026-09-10 — Milestone 3, часть 4: Startup rebuild, health extension, EfVectorStoreTests
+
+**План:** перестроить векторный индекс при старте приложения, добавить размер и размерность в `/health`,
+покрыть EfVectorStore интеграционными тестами на temp SQLite.
+
+**Сделано:**
+- `Program.cs` — после сидинга добавлен блок rebuild: вызывает `vectorStore.RebuildAsync()`, логирует
+  количество векторов и размерность; ловит `InvalidOperationException` от dimension guard и пишет ошибку
+  в лог (приложение продолжает работать, но поиск будет отказывать до ре-ингеста с одной моделью).
+- `HealthEndpoints` — добавлены поля `VectorIndexSize` и `VectorDimension` в ответ; эндпоинт теперь читает
+  `IVectorStore.Snapshot` и отдаёт актуальные цифры без дополнительных запросов к БД.
+- `EfVectorStoreTests` (5 новых тестов):
+  1. `RebuildEncodesAndDecodesBlobsByteExactly` — round-trip BLOB → float[] → BLOB точен;
+  2. `SupersededDocumentsAreExcludedFromSnapshot` — только Active документы попадают в снапшот;
+  3. `MixedDimensionsCauseRebuildToFail` — две разные пары (model, dim) вызывают `InvalidOperationException`;
+  4. `SnapshotSwapIsAtomic` — до rebuild пустой снапшот, после — populated; повторное чтение возвращает ту же
+     ссылку (неизменяемый объект, Volatile.Read);
+  5. `EmptyStoreProducesEmptySnapshot` — пустая БД даёт `Count = 0, Dimension = 0`.
+
+**Проблемы / ловушки:**
+- **Wildcard assertion в FluentAssertions чувствителен к порядку.** Первый вариант теста ожидал
+  `"*multiple*model/dimension*"`, но реальное сообщение содержит "2 distinct model/dimension pairs" — слово
+  "multiple" отсутствует. Исправил на `"*model/dimension*"`, что покрывает суть без привязки к конкретному
+  числительному.
+- **TestDbContextFactory требует типизированный DbContextOptions.** Конструктор `LabAiDbContext` принимает
+  `DbContextOptions<LabAiDbContext>`, а не базовый `DbContextOptions`. Ошибка CS1503 поймана сразу, исправлена
+  генериком.
+- **VectorMath не виден из тестов.** Класс находится в `LabAi.Application.Vectors`, нужно явное `using`.
+  Без него компилятор выдаёт CS0103 на все вызовы `VectorMath.ToFloat32Blob`.
+
+**Итог:** сборка **0 предупреждений, 0 ошибок**; полный offline-набор **183/183** (+5 EfVectorStoreTests).
+Milestone 3 — часть 4/4 закрыта. **Milestone 3 полностью завершён.**
+**Далее:** M4 — Grounded generation: `PromptComposer` с RU system prompt, `PromptHasher`, `RefusalDetector`
+(threshold gate + фраза отказа), `RagQueryPipeline` с fail-closed порядком аудита, замена `/api/chat` на
+`POST /api/ask`.
