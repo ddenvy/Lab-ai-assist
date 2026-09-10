@@ -45,4 +45,33 @@ public static class VectorMath
         MemoryMarshal.AsBytes(vector).CopyTo(blob);
         return blob;
     }
+
+    /// <summary>Copies a stored float32-LE blob back into a float array.</summary>
+    public static float[] FromFloat32Blob(ReadOnlySpan<byte> blob)
+    {
+        if (blob.Length % sizeof(float) != 0)
+            throw new ArgumentException(
+                $"Blob length must be a multiple of {sizeof(float)} bytes, got {blob.Length}.",
+                nameof(blob));
+
+        return MemoryMarshal.Cast<byte, float>(blob).ToArray();
+    }
+
+    /// <summary>
+    /// Dot product of two equal-length vectors — the entire search hot path, because both sides
+    /// are L2-normalized at write time. Flat loop over spans, no LINQ, no allocation, so the JIT
+    /// can auto-vectorize (AGENT.md 2.4).
+    /// </summary>
+    public static float DotProduct(ReadOnlySpan<float> left, ReadOnlySpan<float> right)
+    {
+        if (left.Length != right.Length)
+            throw new ArgumentException(
+                $"Vector lengths must match, got {left.Length} and {right.Length}.", nameof(right));
+
+        var sum = 0f;
+        for (var i = 0; i < left.Length; i++)
+            sum += left[i] * right[i];
+
+        return sum;
+    }
 }
