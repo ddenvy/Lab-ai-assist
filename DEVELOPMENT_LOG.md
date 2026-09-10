@@ -1053,3 +1053,58 @@ float32-LE BLOB, скалярное произведение на `ReadOnlySpan<
 **Далее:** часть 3 — `EfVectorStore`: snapshot swap через `Volatile.Write`, сборка только из
 Active-документов, стартовый dimension guard («смешанное хранилище — отказ обслуживать»),
 подключение `RebuildAsync()` в конец ингеста.
+
+### 2026-09-10 — Milestone 3, часть 3: EfVectorStore с rebuild и Active-only фильтрацией
+
+**План:** EF-backed векторное хранилище как singleton с `IDbContextFactory<T>` для избежания captive
+dependency; неизменяемый снапшот публикуется через `Volatile.Write`; сборка только из Active-документов
+(устаревшие версии исключены на уровне SQL); стартовый dimension guard отказывается искать по смешанному
+хранилищу; подключение `RebuildAsync()` в конец ingest pipeline и DI-регистрация.
+
+**Сделано:**
+- `Domain/Abstractions/IVectorStore` — порт с двумя методами: `Snapshot { get; }` и `RebuildAsync()`;
+  возвращает `SearchIndex` из Domain.ValueObjects (не Application — иначе слой нарушил бы AGENT.md 2.1).
+- `Infrastructure/Persistence/EfVectorStore` — реализация: конструктор принимает
+  `IDbContextFactory<LabAiDbContext>` (а не scoped DbContext — singleton не может держать scoped зависимость);
+  `RebuildAsync()` создаёт временный контекст через фабрику, проверяет dimension guard (`SELECT DISTINCT
+  EmbeddingModelId, EmbeddingDimension` → больше одной пары = `InvalidOperationException`), собирает список
+  Active document IDs явным подзапросом (у Chunk нет навигации `Document` — FK есть, но navigation property
+  отсутствует), фильтрует чанки через `Contains(activeDocIds)`, декодирует BLOB через `MemoryMarshal.Cast`,
+  заполняет SoA-массивы и публикует снапшот через `Volatile.Write`.
+- `IngestPipeline` — добавлен параметр `IVectorStore vectorStore` в конструктор; после успешного
+  `repository.AddAsync` вызывается `await vectorStore.RebuildAsync(cancellationToken)` — индекс перестраивается
+  синхронно с транзакцией, fail-closed порядок: если rebuild упал, ingest падает вместе с ним.
+- `IngestServiceCollectionExtensions` — обновлена фабрика `IngestPipeline`: добавлен
+  `sp.GetRequiredService<IVectorStore>()` между `IDocumentRepository` и `embeddingBatchSize`.
+- `PersistenceServiceCollectionExtensions` — зарегистрированы `AddDbContextFactory<LabAiDbContext>` (для
+  EfVectorStore) и `services.AddSingleton<IVectorStore, EfVectorStore>()`.
+- Тесты: `CorpusIngestTests` и `IngestPipelineTests` обновлены — везде добавлена заглушка
+  `Substitute.For<IVectorStore>()` в конструкторы `IngestPipeline`.
+
+**Проблемы / ловушки:**
+- **SearchIndex оказался в Application, а IVectorStore — в Domain.** Порт не может ссылаться на тип из
+  более низкого слоя без нарушения Clean Architecture. Решение: переместил `SearchIndex.cs` из
+  `Application/Vectors/` в `Domain/ValueObjects/`. Это Value Object (не entity, не aggregate root), поэтому
+  его место в Domain допустимо. В `IVectorStore` используется fully qualified `ValueObjects.SearchIndex` —
+  оба типа в одном assembly, но разных namespace'ах.
+- **Chunk не имеет навигации Document.** Конфигурация `ChunkConfiguration` определяет FK через
+  `HasOne<SourceDocument>().WithMany().HasForeignKey(c => c.DocumentId)` — это shadow navigation, EF Core
+  знает о связи, но C#-код не видит свойства `c.Document`. Попытка написать `Where(c => c.Document.Status == ...)`
+  даёт CS1061. Пришлось переписать на явный подзапрос: сначала `SELECT Id FROM SourceDocuments WHERE Status =
+  Active`, потом `WHERE activeDocIds.Contains(c.DocumentId)`. Генерируемый SQL идентичен (INNER JOIN), но
+  компиляция проходит.
+- **DI-регистрация IngestPipeline сломалась после добавления параметра.** Factory lambda в
+  `IngestServiceCollectionExtensions` передавала 5 аргументов, а конструктор теперь требует 6. Компилятор
+  указал на строку 20 — добавил `sp.GetRequiredService<IVectorStore>()` в правильную позицию (между
+  repository и batchSize).
+- **Тесты тоже требуют обновления.** `CorpusIngestTests` использует реальный SQLite и EfDocumentRepository —
+  туда достаточно добавить `Substitute.For<IVectorStore>()` (RebuildAsync не вызывается в тестах, потому что
+  тесты мокают embeddings, но сам pipeline создаётся полностью). `IngestPipelineTests` — чисто unit-тесты с
+  NSubstitute, там добавил поле `private readonly IVectorStore vectorStore = Substitute.For<IVectorStore>();`
+  и передал во все три места создания IngestPipeline.
+
+**Итог:** сборка **0 предупреждений, 0 ошибок**; полный offline-набор **178/178** (все тесты зелёные, ни
+один не сломался). Milestone 3 — часть 3/4 закрыта.
+**Далее:** часть 4 — подключить `RebuildAsync()` на старте приложения (Program.cs после DbSeeder), расширить
+`/health` endpoint информацией о размере индекса и размерности, написать EfVectorStoreTests (BLOB round-trip,
+исключение superseded документов, dimension guard, atomic snapshot swap).

@@ -7,6 +7,7 @@ using LabAi.Infrastructure.Parsing;
 using LabAi.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 
 namespace LabAi.Tests.Ingest;
 
@@ -71,6 +72,7 @@ public sealed class CorpusIngestTests : IDisposable
             },
             new ConstantEmbeddings(),
             new EfDocumentRepository(db),
+            Substitute.For<IVectorStore>(),
             embeddingBatchSize: 16);
     }
 

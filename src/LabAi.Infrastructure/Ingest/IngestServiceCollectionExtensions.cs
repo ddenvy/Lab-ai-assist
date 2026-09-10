@@ -22,6 +22,7 @@ public static class IngestServiceCollectionExtensions
             sp.GetServices<IChunkingStrategy>(),
             sp.GetRequiredService<IEmbeddingService>(),
             sp.GetRequiredService<IDocumentRepository>(),
+            sp.GetRequiredService<IVectorStore>(),
             embeddingBatchSize));
 
         return services;

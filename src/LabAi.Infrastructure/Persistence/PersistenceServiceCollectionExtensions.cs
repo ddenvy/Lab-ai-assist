@@ -26,11 +26,13 @@ public static class PersistenceServiceCollectionExtensions
             throw new ArgumentException("Connection string must not be blank.", nameof(connectionString));
 
         services.AddDbContext<LabAiDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContextFactory<LabAiDbContext>(options => options.UseSqlite(connectionString));
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IUserStore, EfUserStore>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IDocumentRepository, EfDocumentRepository>();
+        services.AddSingleton<IVectorStore, EfVectorStore>();
         services.AddScoped<DbSeeder>();
 
         return services;

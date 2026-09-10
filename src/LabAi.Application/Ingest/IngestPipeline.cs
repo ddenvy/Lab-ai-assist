@@ -24,6 +24,7 @@ public sealed class IngestPipeline : IDocumentIngestService
     private readonly IReadOnlyList<IChunkingStrategy> strategies;
     private readonly IEmbeddingService embeddings;
     private readonly IDocumentRepository repository;
+    private readonly IVectorStore vectorStore;
     private readonly int embeddingBatchSize;
 
     public IngestPipeline(
@@ -31,18 +32,21 @@ public sealed class IngestPipeline : IDocumentIngestService
         IEnumerable<IChunkingStrategy> strategies,
         IEmbeddingService embeddings,
         IDocumentRepository repository,
+        IVectorStore vectorStore,
         int embeddingBatchSize)
     {
         ArgumentNullException.ThrowIfNull(parsers);
         ArgumentNullException.ThrowIfNull(strategies);
         ArgumentNullException.ThrowIfNull(embeddings);
         ArgumentNullException.ThrowIfNull(repository);
+        ArgumentNullException.ThrowIfNull(vectorStore);
         ArgumentOutOfRangeException.ThrowIfLessThan(embeddingBatchSize, 1);
 
         this.parsers = parsers.ToArray();
         this.strategies = strategies.ToArray();
         this.embeddings = embeddings;
         this.repository = repository;
+        this.vectorStore = vectorStore;
         this.embeddingBatchSize = embeddingBatchSize;
     }
 
@@ -109,6 +113,13 @@ public sealed class IngestPipeline : IDocumentIngestService
         }
 
         var documentId = await repository.AddAsync(document, BuildChunks, superseded?.Id, cancellationToken);
+
+        // Rebuild the vector store snapshot after the transaction commits. If the dimension guard
+        // throws here the document and its chunks are already persisted; search refuses to serve a
+        // mixed space until the operator re-ingests with a single model — exactly the fail-closed
+        // contract the plan demands.
+        await vectorStore.RebuildAsync(cancellationToken);
+
         return new IngestResult(documentId, IngestOutcome.Created, drafts.Count, superseded?.Id);
     }
 

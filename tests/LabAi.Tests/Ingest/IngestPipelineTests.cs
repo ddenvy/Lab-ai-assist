@@ -17,6 +17,7 @@ public sealed class IngestPipelineTests
     private readonly IChunkingStrategy strategy = Substitute.For<IChunkingStrategy>();
     private readonly IEmbeddingService embeddings = Substitute.For<IEmbeddingService>();
     private readonly IDocumentRepository repository = Substitute.For<IDocumentRepository>();
+    private readonly IVectorStore vectorStore = Substitute.For<IVectorStore>();
 
     public IngestPipelineTests()
     {
@@ -192,7 +193,7 @@ public sealed class IngestPipelineTests
     [Fact]
     public async Task MissingParserForTheKindFailsWithADescriptiveMessage()
     {
-        var pipeline = new IngestPipeline([], [strategy], embeddings, repository, 2);
+        var pipeline = new IngestPipeline([], [strategy], embeddings, repository, vectorStore, 2);
 
         (await FluentActions.Awaiting(() => pipeline.IngestAsync(Request()))
             .Should().ThrowAsync<InvalidOperationException>())
@@ -202,7 +203,7 @@ public sealed class IngestPipelineTests
     [Fact]
     public async Task MissingChunkingStrategyForTheKindFailsWithADescriptiveMessage()
     {
-        var pipeline = new IngestPipeline([parser], [], embeddings, repository, 2);
+        var pipeline = new IngestPipeline([parser], [], embeddings, repository, vectorStore, 2);
 
         (await FluentActions.Awaiting(() => pipeline.IngestAsync(Request()))
             .Should().ThrowAsync<InvalidOperationException>())
@@ -225,7 +226,7 @@ public sealed class IngestPipelineTests
     }
 
     private IngestPipeline CreatePipeline(int embeddingBatchSize = 2) =>
-        new([parser], [strategy], embeddings, repository, embeddingBatchSize);
+        new([parser], [strategy], embeddings, repository, vectorStore, embeddingBatchSize);
 
     private void StubAddAsync() =>
         repository.AddAsync(

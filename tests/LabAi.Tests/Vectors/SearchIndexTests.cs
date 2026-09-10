@@ -1,4 +1,4 @@
-using LabAi.Application.Vectors;
+using LabAi.Domain.ValueObjects;
 
 namespace LabAi.Tests.Vectors;
 
