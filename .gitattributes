@@ -14,3 +14,6 @@
 *.gif binary
 *.pdf binary
 *.db  binary
+
+# Instrument exports stay byte-faithful (UTF-8 BOM + CRLF) to the Mini-CDS reference data.
+docs/corpus/instrument/*.csv -text
