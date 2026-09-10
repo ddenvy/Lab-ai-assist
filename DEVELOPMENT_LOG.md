@@ -48,7 +48,7 @@ append-only аудита под Part 11. Формат `Mini-CDS\Reports\1.csv` �
 
 | Milestone | Описание | Статус |
 |-----------|----------|--------|
-| 1 | Semantic Kernel + базовый чат (каркас, .env, Serilog, Gemini-адаптеры) | 🔨 В работе (часть 2/3 закрыта, 13/13 tests) |
+| 1 | Semantic Kernel + базовый чат (каркас, .env, Serilog, Gemini-адаптеры) | ✅ Закрыт (32/32 offline + 5/5 live, 0 падений) |
 | 2 | Ingest: парсинг + чанки + метаданные | ⬜ Не начат |
 | 3 | Embeddings + vector store + поиск top-k | ⬜ Не начат |
 | 4 | Grounded-генерация + citations + «не знаю» | ⬜ Не начат |
@@ -78,14 +78,29 @@ append-only аудита под Part 11. Формат `Mini-CDS\Reports\1.csv` �
 | Append-only в 2 слоя (EF-интерцептор + SQL-триггеры) | Интерцептор ловит мутации через EF до генерации SQL; триггеры ловят сырой SQL в обход EF. Каждый слой закрывает свой вектор |
 | Детерминированные токены маскирования | Один и тот же вход обязан давать один и тот же `PromptHash` навсегда; случайный или счётчиковый токен сломал бы воспроизводимость доказательства |
 | Хост стартует без `GEMINI_API_KEY` — warning, а не fail-fast (осознанное расхождение с планом) | План требовал fail-fast, но golden set и E2E на `WebApplicationFactory` обязаны поднимать приложение **без ключа**, иначе CI не запускается вовсе. Компромисс: warning при старте, описательное исключение при первом обращении внутри адаптера, `geminiKeyPresent` в `/health`. Деградация видна, но не блокирует не-AI маршруты |
+| Эмбеддинги через `AddGoogleAIEmbeddingGenerator` → `Microsoft.Extensions.AI.IEmbeddingGenerator`, не SK-нативный путь | `AddGoogleAIEmbeddingGeneration` и `GoogleAITextEmbeddingGenerationService` в 1.80.1-alpha помечены `[Obsolete]`. Коннектор сам мигрирует на `Microsoft.Extensions.AI`; встать на устаревшее имя означало бы гарантированный повторный churn |
+| Чат остаётся на `AddGoogleAIGeminiChatCompletion`, хотя `AddGoogleAIChatClient` новее | Второй параметр `AddGoogleAIChatClient` — `Google.GenAI.Client`. Назвать этот тип в нашем коде = добавить прямую ссылку на `Google.GenAI`, а она запрещена (коннектор скомпилирован против 0.11.0, NuGet зарезолвил бы непроверенный мажор). Асимметрия «чат на SK, эмбеддинги на M.E.AI» принята осознанно и невидима выше Infrastructure |
+| Модель чата — закреплённое имя (`gemini-3.5-flash`), никогда не rolling-алиас | В аудите `Model` — доказательство того, **какая** модель ответила. `gemini-flash-latest` молча переезжает на новую версию, и запись становится ложной, оставаясь внешне корректной. Это та же причина, что и `Temperature = 0` |
+| Никакого фолбэка на вторую embedding-модель (план предлагал `text-embedding-004`) | `text-embedding-004` = 768 измерений против 3072 у `gemini-embedding-001`. Успешный фолбэк наполнил бы хранилище **другим векторным пространством**, чем то, о котором думает оператор. Громкий отказ + смена конфига + ре-ингест правильнее тихой подмены |
 
 ## Известные технические долги
 
-- `Marker.cs` в Domain и Application — временный якорь сборки, чтобы `LayeringTests` могли ссылаться
-  на пустые проекты. Удалить в Milestone 2, когда появятся реальные типы.
+- `Marker.cs` в Application — временный якорь сборки, чтобы `LayeringTests` могли ссылаться на пустой
+  проект. В Domain маркер **удалён** в M1 часть 3: там появились реальные порты
+  (`Abstractions\IGroundedChatClient` и др.), и тест теперь ссылается на них. Удалить оставшийся в
+  Milestone 2.
 - `/health` сейчас отвечает только про конфигурацию Gemini (`geminiKeyPresent`, модели). По плану он
   обязан также сообщать доступность БД и размер векторного индекса — обе проверки физически нечего
   вызывать до Milestone 2 (`LabAiDbContext`) и Milestone 3 (`EfVectorStore`). Расширить там же.
+- Временный `POST /api/chat` — **без авторизации и без строки аудита**. Существует только как смоук
+  обвязки Gemini и осознанно нарушает собственный принцип продукта («нет ответа без записи в
+  журнале»). Удалить в Milestone 4 при переходе на `POST /api/ask`.
+- В Gemini-адаптерах нет ретраев с backoff на 429/503 (план: 3 попытки, уважать `Retry-After`).
+  Это не теория: живой прогон показал реальный `503 UNAVAILABLE` от `gemini-3.6-flash`. Сегодня 503
+  прокидывается наружу сырым `HttpOperationException`.
+- `Xunit.SkippableFact` в тестовом проекте — вынужденная зависимость: в xunit 2.9.3 нет динамического
+  skip'а (`Assert.Skip` появился только в v3), а live-сьют обязан честно показывать «Skipped», а не
+  «Passed». Уйдёт сама при миграции на xunit v3.
 - SHA256 hash chain журнала (`PrevHash`/`Hash` + `VerifyChainAsync`) — осознанно отложен: пользователь
   выбрал более простой вариант append-only. Дизайн оставляет место (детерминированный `max(Id)+1`
   в транзакции), реализация ~1 день, паттерн целиком есть в Mini-CDS.
@@ -303,3 +318,112 @@ append-only аудита под Part 11. Формат `Mini-CDS\Reports\1.csv` �
 compact-JSON лога несут `CorrelationId`. Milestone 1 — часть 2/3 закрыта.
 **Далее:** часть 3 — адаптеры `GeminiChatClient` и `GeminiEmbeddingService`, временный `POST /api/chat`,
 ADR-0002, live-смоук тесты.
+
+---
+
+### 2026-09-10 — Milestone 1, часть 3: Gemini-адаптеры, /api/chat, ADR-0002
+
+**План:** закрыть альфа-коннектор Gemini двумя своими портами, проверить обвязку живьём на реальном
+ключе, зафиксировать необратимые решения в ADR-0002 и закрыть Milestone 1.
+
+**Сделано:**
+- **Reflection-probe вместо документации.** Одноразовый проект `C:\tmp\apiprobe` (после использования
+  удалён) выгрузил реальную поверхность `Microsoft.SemanticKernel.Connectors.Google 1.80.1-alpha`:
+  сигнатуры всех `AddGoogleAI*`, помеченные `[Obsolete]`, свойства `GeminiPromptExecutionSettings`,
+  контракт `IEmbeddingGenerator<string, Embedding<float>>` и — отдельно — поведение при пустом и при
+  `null` ключе. Всё, что дальше написано в адаптерах, опирается на этот дамп, а не на память.
+  Ловушка внутри самой разведки: `AppDomain.CurrentDomain.GetAssemblies()` **не** содержит сборок,
+  типы которых ни разу не трогали, — первый прогон нашёл 0 google-типов, пока не добавил явный
+  `Assembly.Load(...)`.
+- **Порты в Domain** (`Abstractions\`): `IGroundedChatClient` + `GroundedChatResult`,
+  `IEmbeddingService`. `Marker.cs` из Domain удалён, `LayeringTests` переведён на
+  `typeof(IGroundedChatClient).Assembly`.
+- **Infrastructure\Ai:** `GeminiNotConfiguredException`, `GeminiChatClient`
+  (`Temperature = 0.0`, `TopP = 0.95`, `MaxTokens = 2048`, `CandidateCount = 1`),
+  `GeminiEmbeddingService` (проверка «сколько текстов — столько векторов, в том же порядке»),
+  `GeminiServiceCollectionExtensions.AddLabAiGemini(GeminiOptions)`.
+- **Web:** `Endpoints\ChatEndpoints.cs` — временный `POST /api/chat` с потолком 4000 символов
+  (AGENT.md 3.3: недоверенный ввод ограничивается до похода в платный внешний API) и маппингом
+  «ключа нет» → **503**, а не 500: ничего не сломано, ретрай без смены конфига не поможет.
+- **Перестановка пакетов.** `DotNetEnv` переехал из Infrastructure в Web — единственный потребитель
+  `Program.cs`. В Infrastructure явно прописаны `Microsoft.Extensions.DependencyInjection.Abstractions`
+  и `Microsoft.Extensions.Logging.Abstractions` **10.0.6**: оба используются напрямую, а транзитивно
+  приехали бы с полом `1.x` от альфа-коннектора.
+- **ADR-0002** (EN): 7 решений, exit ramp на REST `generateContent`/`embedContent` (<100 строк, ноль
+  изменений выше Infrastructure), таблица альтернатив, обязательства.
+- **Тесты:** 24 новых — 7 на чат-адаптер, 8 на embedding-адаптер, 4 на DI-граф, 5 live.
+- **Живой прогон:** `dotnet run` → `/health` = `healthy` с `chatModel: gemini-3.5-flash`;
+  `POST /api/chat` → 200 с настоящим ответом Gemini, включая запрос на русском.
+
+**Проблемы / ловушки:**
+- **`gemini-2.5-flash` — модель из плана — снята с обслуживания для новых ключей.** Live-тест упал с
+  `HttpOperationException: 404`. Тело ответа Google: *«This model models/gemini-2.5-flash is no longer
+  available to new users. Please update your code to use models/gemini-3.6-flash»*, одинаково на `/v1/`
+  и `/v1beta/`. При этом модель **присутствует** в `GET /v1beta/models` — значит список моделей не
+  является проверкой доступности, только реальный вызов `generateContent`. Прогнал кандидатов с нашим
+  точным `generationConfig`: `gemini-3.6-flash` → **503 UNAVAILABLE** (перегруз), `gemini-3.5-flash`,
+  `gemini-flash-latest`, `gemini-3.1-flash-lite` → 200. Взял **`gemini-3.5-flash`**: `flash-latest`
+  отвергнут, потому что это rolling-алиас, а `Model` в аудите — доказательство того, какая модель
+  ответила; алиас сделал бы запись ложной, оставив её внешне корректной. Рекомендованный Google
+  `3.6-flash` отвергнут из-за нестабильной доступности — демо, падающее на первом вопросе, хуже модели
+  на поколение старше. Это ровно тот класс поломок, который offline-тесты поймать не могут **в
+  принципе**, — лучший аргумент в пользу live-сьютa из всех возможных.
+- **`Assert.Skip` в xunit 2.9.3 не существует, хотя план утверждал обратное.** Компилятор выдал
+  CS0411, резолвя `Skip` в `AsyncEnumerable.Skip` — уже это подсказало, что члена `Assert.Skip` нет.
+  Проверил не по памяти, а в самом пакете: в `xunit.assert.xml` есть `Xunit.Sdk.SkipException.ForSkip`
+  с прямой оговоркой *«this only works in v3 and later of xUnit.net»*, а в #Strings-куче DLL имени
+  `Skip` нет вовсе. Обходных путей в v2 тоже нет: `Skip` у `[Fact]` — compile-time константа, а
+  `ReflectionAttributeInfo` читает `CustomAttributeData`, не создавая экземпляр, поэтому трюк
+  «вычислить `Skip` в конструкторе своего атрибута» не работает. Взял `Xunit.SkippableFact` 1.5.85
+  (MS-PL, netstandard2.0) → `[SkippableFact]` + `Skip.IfNot`. Ранний `return` отверг сознательно: он
+  рисует «Passed» там, где тест не выполнялся. Результат без ключа: **32 passed, 5 skipped**.
+- **`GeminiPromptExecutionSettings.Temperature` — `double?`, а не `float?`.** План писал
+  `Temperature = 0.0f`; probe показал `double?`, и `0.0f` не скомпилировался бы. Мелочь, которая
+  ловится только дампом сборки.
+- **`CandidateCount = 1` обязателен рядом с `Temperature = 0`.** У Gemini `candidateCount > 1`
+  требует `temperature = 1.0`, то есть «несколько вариантов ответа» и «воспроизводимость»
+  взаимоисключающи по построению API. Зафиксировано отдельным тестом, чтобы будущая правка не
+  разъехала молча.
+- **Регистрация с пустым ключом проходит, с `null` — падает сразу.** Probe: `AddGoogleAI*(model, "")`
+  → регистрация успешна, исключение только при резолве (`ArgumentException`: «The value cannot be an
+  empty string…»). Это и есть техническая возможность регистрировать Gemini **безусловно** и держать
+  guard внутри адаптера — деградированный режим без двух разных DI-графов. С `null` так не вышло бы.
+- **`AddGoogleAIChatClient` новее, но брать нельзя.** Его второй параметр — `Google.GenAI.Client`:
+  пришлось бы назвать в своём коде тип из транзитивно запертого `Google.GenAI 0.11.0`. Прямая ссылка
+  на свежий мажор сломала бы коннектор. Асимметрия «чат на SK `IChatCompletionService`, эмбеддинги на
+  `Microsoft.Extensions.AI.IEmbeddingGenerator`» принята осознанно и выше Infrastructure невидима.
+- **`EmbedAsync` намеренно передаёт `options: null`.** У `EmbeddingGenerationOptions` есть `ModelId`,
+  и override модели per call — это ровно тот путь, которым в хранилище появляются два несравнимых
+  векторных пространства. Написал тест, утверждающий, что options действительно `null`, иначе
+  намерение не отличить от забывчивости.
+- **NSubstitute: `Arg.Do`/`Arg.Any` нельзя ставить внутрь условных выражений.** Первая версия хелпера
+  была `history is null ? Arg.Any<ChatHistory>() : Arg.Do<ChatHistory>(…)`. Эти методы работают
+  побочным эффектом на внутренней очереди сопоставителей, поэтому ветвление нарушает порядок аргументов
+  непредсказуемо. Заменил на безусловные `Arg.Do<T>(captured => cb?.Invoke(captured))`.
+- **CS1503 в собственном тесте:** `Replying("the model answer")` при `params ChatMessageContent[]`.
+  Второй ошибкой сборки был тот самый `Assert.Skip`. Обе — цена написания четырёх тестовых файлов
+  подряд без промежуточной сборки; впредь компилировать после каждого.
+- **Ложный 400 на первом ручном прогоне.** `curl -d '{"message":"…кириллица…"}'` из Git Bash вернул
+  400 при полностью рабочем эндпоинте. То же тело, записанное в файл как UTF-8 и отправленное
+  `--data-binary @file`, дало 200 и ответ «Да». Артефакт кодировки оболочки, а не кода — но проверять
+  пришлось обязательно: продукт целиком русскоязычный, и «не работает по-русски» было бы фатально.
+- **Гигиена ключа при живом прогоне.** Ключ подставлялся в переменную окружения конвейером
+  `grep | cut | tr` и **ни разу не напечатан**; в отчётах фигурирует только `${#GEMINI_API_KEY}` = 53.
+  Файл `.env` в репозитории на этот раз не создавался вовсе. Перед прогоном отдельно проверил, что на
+  пути `DotNetEnv.Env.TraversePath()` (от CWD строго вверх) нет чужих `.env`, способных перезаписать
+  переменную, — `C:\Develop\.env` и `C:\.env` отсутствуют.
+- Могло сломаться, но не сломалось: `gemini-embedding-001` реально вернул **3072** измерения —
+  совпало с планом, значит dimension guard в M3 будет считать от проверенного числа, а не от
+  предположения; `services.AddLogging()` в тестовом проекте разрешается благодаря `<FrameworkReference
+  Include="Microsoft.AspNetCore.App" />`, который приносит `Mvc.Testing`; четыре embedding-теста
+  прошли с первого раза, то есть адаптер правильно разбирает `GeneratedEmbeddings<Embedding<float>>`
+  и `ReadOnlyMemory<float> → float[]`.
+
+**Итог:** сборка **0 предупреждений, 0 ошибок**; offline **32/32** (плюс 5 честно пропущенных live),
+live **5/5** с реальным ключом. Ручной прогон: `/health` → `healthy`, `POST /api/chat` → 200 с живым
+ответом `gemini-3.5-flash`, в том числе на русском. Строка лога адаптера содержит только
+`ModelId`, `PromptChars`, `CandidateCount`, `AnswerChars` и `CorrelationId` — ни текста вопроса, ни
+текста ответа (AGENT.md 3.2), проверено дампом полной JSON-строки. ADR-0002 подписан.
+**Milestone 1 закрыт (3/3).**
+**Далее:** Milestone 2, часть 1 — `LabAiDbContext` + конфигурации сущностей + миграция `InitialCreate`
++ `IDesignTimeDbContextFactory`.

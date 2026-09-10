@@ -23,6 +23,7 @@ try
 
     var gemini = GeminiOptionsFactory.Create(builder.Configuration);
     builder.Services.AddSingleton(gemini);
+    builder.Services.AddLabAiGemini(gemini);
 
     if (!gemini.IsConfigured)
     {
@@ -46,6 +47,9 @@ try
 
     app.MapGet("/", static () => Results.Text("Lab AI Assistant", "text/plain; charset=utf-8"));
     app.MapHealthEndpoints();
+
+    // Temporary smoke endpoint for the Gemini wiring; replaced by POST /api/ask in Milestone 4.
+    app.MapChatEndpoints();
 
     Log.Information("LabAi host starting");
     app.Run();

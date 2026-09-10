@@ -18,6 +18,9 @@
       Sinks.File 7.0.0, Sinks.Console 6.1.1. Declaring them again would only risk a conflict.
     -->
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+
+    <!-- Only consumer is Program.cs, which loads .env before the builder snapshots the environment. -->
+    <PackageReference Include="DotNetEnv" Version="3.2.0" />
   </ItemGroup>
 
   <ItemGroup>

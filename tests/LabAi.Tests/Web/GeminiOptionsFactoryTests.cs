@@ -1,3 +1,4 @@
+using LabAi.Infrastructure.Ai;
 using LabAi.Web.Infrastructure;
 using Microsoft.Extensions.Configuration;
 
@@ -52,8 +53,12 @@ public sealed class GeminiOptionsFactoryTests
     {
         var options = GeminiOptionsFactory.Create(EmptyConfiguration(), _ => null);
 
-        options.ChatModelId.Should().Be("gemini-2.5-flash");
-        options.EmbeddingModelId.Should().Be("gemini-embedding-001");
+        // Compared against GeminiOptions rather than a literal: Google retires model names
+        // (gemini-2.5-flash began answering 404 for new keys), and a literal here would fail an
+        // unrelated test every time the default model is updated.
+        var defaults = new GeminiOptions();
+        options.ChatModelId.Should().Be(defaults.ChatModelId);
+        options.EmbeddingModelId.Should().Be(defaults.EmbeddingModelId);
     }
 
     [Fact]

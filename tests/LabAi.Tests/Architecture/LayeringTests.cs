@@ -9,7 +9,7 @@ namespace LabAi.Tests.Architecture;
 /// </summary>
 public sealed class LayeringTests
 {
-    private static readonly Assembly Domain = typeof(LabAi.Domain.Marker).Assembly;
+    private static readonly Assembly Domain = typeof(LabAi.Domain.Abstractions.IGroundedChatClient).Assembly;
     private static readonly Assembly Application = typeof(LabAi.Application.Marker).Assembly;
 
     [Fact]
