@@ -78,7 +78,9 @@ public static class AuthEndpoints
                 CookieAuthenticationDefaults.AuthenticationScheme,
                 result.ToClaimsPrincipal());
 
-            return Results.Redirect("/");
+            // Redirect to the documents page after login — it requires authentication and shows
+            // the corpus immediately, giving the user a clear next step.
+            return Results.Redirect("/documents");
         });
 
         return endpoints;
