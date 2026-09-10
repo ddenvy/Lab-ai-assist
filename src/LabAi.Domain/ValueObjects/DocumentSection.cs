@@ -5,7 +5,7 @@ namespace LabAi.Domain.ValueObjects;
 /// stack, one instrument sample's rows, a JSON element, or a PDF page.
 /// </summary>
 /// <param name="SectionPath">
-/// Human-readable location inside the document, e.g. <c>"4. Система > 4.2 Критерии"</c>,
+/// Human-readable location inside the document, e.g. <c>"4. System > 4.2 Criteria"</c>,
 /// <c>"Sample_003"</c> or <c>"Page 2"</c>. Becomes part of the chunk's citation context, so it must
 /// stay stable across re-ingests of unchanged content.
 /// </param>

@@ -27,7 +27,7 @@ public sealed class CsvRowGroupChunkerTests
         chunks.Should().HaveCount(1);
         chunks[0].SectionPath.Should().Be("Sample_003");
         chunks[0].Text.Should().Be(
-            "Результаты измерений, образец Sample_003: строк данных 2.\n" +
+            "Measurement results, sample Sample_003: 2 data rows.\n" +
             $"{Header}\nSample_003,1,100.5\nSample_003,2,150.2");
         chunks[0].LineStart.Should().Be(2);
         chunks[0].LineEnd.Should().Be(3);
@@ -46,8 +46,8 @@ public sealed class CsvRowGroupChunkerTests
         var chunks = chunker.Chunk(document);
 
         chunks.Should().HaveCount(1);
-        chunks[0].Text.Should().StartWith("Результаты измерений: строк данных 3.\n");
-        chunks[0].Text.Should().NotContain("образец");
+        chunks[0].Text.Should().StartWith("Measurement results: 3 data rows.\n");
+        chunks[0].Text.Should().NotContain("sample ");
     }
 
     [Fact]
@@ -62,17 +62,17 @@ public sealed class CsvRowGroupChunkerTests
 
         var chunks = chunker.Chunk(document);
 
-        // rowBudget = 150 - 57 (preamble) - 1 - 21 (header) - 1 = 70; two 24-char rows fit, the
-        // third pair does not, so rows split 2 + 2.
+        // rowBudget = 150 - 52 (preamble) - 1 - 21 (header) - 1 = 75; three 24-char rows fit
+        // (72 + 2 separators = 74), the fourth does not, so rows split 3 + 1.
         chunks.Should().HaveCount(2);
         foreach (var chunk in chunks)
         {
-            chunk.Text.Should().StartWith("Результаты измерений, образец Sample_003: строк данных 4.\n" + Header + "\n");
+            chunk.Text.Should().StartWith("Measurement results, sample Sample_003: 4 data rows.\n" + Header + "\n");
             chunk.Text.Length.Should().BeLessThanOrEqualTo(150);
         }
 
-        chunks[0].Text.Should().EndWith("\n" + rows[0] + "\n" + rows[1]);
-        chunks[1].Text.Should().EndWith("\n" + rows[2] + "\n" + rows[3]);
+        chunks[0].Text.Should().EndWith("\n" + rows[0] + "\n" + rows[1] + "\n" + rows[2]);
+        chunks[1].Text.Should().EndWith("\n" + rows[3]);
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public sealed class CsvRowGroupChunkerTests
         var chunks = chunker.Chunk(document);
 
         chunks[0].LineStart.Should().Be(2);
-        chunks[0].LineEnd.Should().Be(3);
-        chunks[1].LineStart.Should().Be(4);
+        chunks[0].LineEnd.Should().Be(4); // rows 0,1,2 → source lines 2,3,4
+        chunks[1].LineStart.Should().Be(5); // row 3 → source line 5
         chunks[1].LineEnd.Should().Be(5);
     }
 

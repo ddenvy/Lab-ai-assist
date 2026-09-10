@@ -9,7 +9,7 @@ namespace LabAi.Infrastructure.Parsing;
 /// Parses instrument CSV exports in the shape produced by the chromatography data system
 /// (one row per peak: <c>Sample Name, Method Name, Status, Created At, Peak #, Retention Time (s),
 /// Height, Area, FWHM, Plates, Tailing</c>). Rows are grouped into one section per sample, because
-/// a peak row alone is not semantically retrievable — "результаты Sample_003" must match a block
+/// a peak row alone is not semantically retrievable — "results Sample_003" must match a block
 /// that contains the whole sample. The UTF-8 BOM that the export writes is removed; an empty
 /// <c>Tailing</c> cell is legal. A CSV without a <c>Sample Name</c> column falls back to one
 /// section covering all rows.

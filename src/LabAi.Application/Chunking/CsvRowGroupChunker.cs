@@ -6,16 +6,16 @@ namespace LabAi.Application.Chunking;
 
 /// <summary>
 /// Chunker for instrument CSV exports already grouped by the parser into one section per sample.
-/// Every chunk repeats a one-line preamble ("Результаты измерений, образец X: строк данных N.")
-/// and the header row — the preamble is what makes a semantic query like "результаты Sample_003"
+/// Every chunk repeats a one-line preamble ("Measurement results, sample X: N data rows.")
+/// and the header row — the preamble is what makes a semantic query like "results Sample_003"
 /// hit the block without relying on a specific cell value. A sample group larger than the budget
 /// is split across row windows; rows are never overlapped (each row is an independent fact, and
 /// duplication would yield duplicate citations).
 /// </summary>
 public sealed class CsvRowGroupChunker : IChunkingStrategy
 {
-    private const string PreamblePrefix = "Результаты измерений";
-    private const string RowCountSuffix = "строк данных";
+    private const string PreamblePrefix = "Measurement results";
+    private const string RowCountSuffix = "data rows";
 
     private readonly int maxChunkChars;
 
@@ -82,8 +82,8 @@ public sealed class CsvRowGroupChunker : IChunkingStrategy
     private static string BuildPreamble(string sectionPath, int rowCount)
     {
         return sectionPath == DocumentSection.UngroupedRowsPath
-            ? $"{PreamblePrefix}: {RowCountSuffix} {rowCount}."
-            : $"{PreamblePrefix}, образец {sectionPath}: {RowCountSuffix} {rowCount}.";
+            ? $"{PreamblePrefix}: {rowCount} {RowCountSuffix}."
+            : $"{PreamblePrefix}, sample {sectionPath}: {rowCount} {RowCountSuffix}.";
     }
 
     private void AddChunk(

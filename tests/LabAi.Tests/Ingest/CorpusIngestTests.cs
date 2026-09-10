@@ -147,7 +147,7 @@ public sealed class CorpusIngestTests : IDisposable
             .ToListAsync();
 
         csvChunkTexts.Should().HaveCount(2);
-        csvChunkTexts.Should().OnlyContain(t => t.StartsWith("Результаты измерений, образец Sample_2026-"));
+        csvChunkTexts.Should().OnlyContain(t => t.StartsWith("Measurement results, sample Sample_2026-"));
     }
 
     private async Task<IngestResult> IngestAsync(CorpusFile file)
