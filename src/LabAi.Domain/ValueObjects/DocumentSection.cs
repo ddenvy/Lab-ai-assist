@@ -20,4 +20,12 @@ public sealed record DocumentSection(
     int? PageStart = null,
     int? PageEnd = null,
     int? LineStart = null,
-    int? LineEnd = null);
+    int? LineEnd = null)
+{
+    /// <summary>
+    /// Section path for a CSV without a <c>Sample Name</c> column, where all rows land in one
+    /// block. Shared by the CSV parser (producer) and the CSV chunker (consumer), which must
+    /// agree on the sentinel instead of duplicating a magic string.
+    /// </summary>
+    public const string UngroupedRowsPath = "Rows";
+}

@@ -44,7 +44,7 @@ public sealed class InstrumentCsvParser : IDocumentParser
             return new ParsedDocument(
             [
                 new DocumentSection(
-                    SectionPath: "Rows",
+                    SectionPath: DocumentSection.UngroupedRowsPath,
                     Text: JoinRecords(records),
                     LineStart: records[0].StartLine,
                     LineEnd: records[^1].EndLine)
