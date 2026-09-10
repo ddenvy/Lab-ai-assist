@@ -20,13 +20,21 @@
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.80.1" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" Version="1.80.1-alpha" />
 
+    <!-- EF Core version matches Mini-CDS so both projects resolve one shared graph. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
     <!--
       Declared explicitly because this project consumes both directly: ILogger<T> in the Gemini
       adapters and IServiceCollection in AddLabAiGemini. Left to the transitive graph they arrive
-      with a 1.x floor, which is a silent downgrade waiting to happen.
+      with a 1.x floor, which is a silent downgrade waiting to happen. The version tracks EF Core:
+      10.0.12 requires Microsoft.Extensions.Logging 10.0.12, so pinning these lower is NU1605.
     -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.6" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.6" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
   </ItemGroup>
 
 </Project>

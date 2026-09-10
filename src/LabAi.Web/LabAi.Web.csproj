@@ -21,6 +21,16 @@
 
     <!-- Only consumer is Program.cs, which loads .env before the builder snapshots the environment. -->
     <PackageReference Include="DotNetEnv" Version="3.2.0" />
+
+    <!--
+      Required by the EF Core tools because Infrastructure declares Design with PrivateAssets=all, so
+      it deliberately does not flow here. Without it `dotnet ef migrations add` refuses with "Your
+      startup project doesn't reference Microsoft.EntityFrameworkCore.Design". Same split as Mini-CDS.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
