@@ -1,13 +1,59 @@
 @page "/"
 
-<PageTitle>Лабораторный ассистент</PageTitle>
-<h1>Лабораторный ассистент</h1>
-<p>
-    Ассистент отвечает на вопросы по загруженным SOP и данным приборов, цитирует источники и
-    пишет в журнал аудита каждый запрос. При отсутствии ответа в источниках он отвечает
-    «Нет в источниках.»
-</p>
-<ul>
-    <li><a href="documents">Документы</a> — корпус и загрузка новых документов.</li>
-    <li><a href="login">Вход</a> — регистрация пользователя в системе.</li>
-</ul>
+<PageTitle>Laboratory Assistant</PageTitle>
+
+<div class="home-container">
+    <h1>Laboratory Assistant</h1>
+    <p>
+        The assistant answers questions based on uploaded SOPs and instrument data, cites sources,
+        and logs every query in an audit journal. When no answer is found in the sources, it responds
+        with "Not found in sources."
+    </p>
+    <ul>
+        <li><a href="documents">Documents</a> — corpus and upload new documents.</li>
+        <li><a href="login">Login</a> — sign in to the system.</li>
+    </ul>
+</div>
+
+<style>
+    .home-container {
+        max-width: 800px;
+        margin: 0 auto;
+        text-align: center;
+        padding: 3rem 2rem;
+    }
+
+    .home-container h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1.5rem;
+        color: #1e3a5f;
+    }
+
+    .home-container p {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        margin-bottom: 2rem;
+        color: #333;
+    }
+
+    .home-container ul {
+        list-style: none;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .home-container li a {
+        color: #1e3a5f;
+        text-decoration: underline;
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+    }
+
+    .home-container li a:hover {
+        background-color: #f0f4f8;
+        border-radius: 4px;
+    }
+</style>

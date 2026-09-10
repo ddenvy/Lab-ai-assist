@@ -5,66 +5,176 @@
 @inject IDocumentIngestService Ingest
 @inject IUserStore UserStore
 
-<PageTitle>Документы</PageTitle>
-<h1>Документы</h1>
+<PageTitle>Documents</PageTitle>
 
-@if (documents is null)
-{
-    <p>Загрузка…</p>
-}
-else if (documents.Count == 0)
-{
-    <p>Корпус пуст. Загрузите первый документ ниже.</p>
-}
-else
-{
-    <table>
-        <thead>
-            <tr>
-                <th>Название</th>
-                <th>Версия</th>
-                <th>Тип</th>
-                <th>Путь</th>
-                <th>Загружен</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var document in documents)
-            {
+<div class="documents-container">
+    <h1>Documents</h1>
+
+    @if (documents is null)
+    {
+        <p>Loading…</p>
+    }
+    else if (documents.Count == 0)
+    {
+        <p>Corpus is empty. Upload your first document below.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
                 <tr>
-                    <td>@document.Title</td>
-                    <td>v@(document.Version)</td>
-                    <td>@document.Kind</td>
-                    <td>@document.SourcePath</td>
-                    <td>@document.IngestedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                    <th>Title</th>
+                    <th>Version</th>
+                    <th>Type</th>
+                    <th>Path</th>
+                    <th>Ingested</th>
                 </tr>
-            }
-        </tbody>
-    </table>
-}
+            </thead>
+            <tbody>
+                @foreach (var document in documents)
+                {
+                    <tr>
+                        <td>@document.Title</td>
+                        <td>v@(document.Version)</td>
+                        <td>@document.Kind</td>
+                        <td>@document.SourcePath</td>
+                        <td>@document.IngestedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 
-<h2>Загрузка документа</h2>
-<div class="field">
-    <label>Название
-        <InputText @bind-Value="title" />
-    </label>
-    <label>Версия
-        <InputNumber @bind-Value="version" />
-    </label>
+    <h2>Upload Document</h2>
+    <div class="upload-form">
+        <div class="field">
+            <label>Title
+                <InputText @bind-Value="title" />
+            </label>
+            <label>Version
+                <InputNumber @bind-Value="version" />
+            </label>
+        </div>
+        <InputFile OnChange="UploadAsync" accept=".md,.markdown,.csv,.json,.pdf" disabled="@uploading" />
+    </div>
+
+    @if (lastResult is not null)
+    {
+        <p class="success">
+            Document #@lastResult.DocumentId: @lastResult.ChunksCreated chunks,
+            source @(lastResult.Outcome == IngestOutcome.Duplicate ? "duplicate (content unchanged)" : "created")@(lastResult.SupersededDocumentId is { } superseded ? $", superseded document #{superseded}" : string.Empty).
+        </p>
+    }
+    @if (lastError is not null)
+    {
+        <p class="error">@lastError</p>
+    }
 </div>
-<InputFile OnChange="UploadAsync" accept=".md,.markdown,.csv,.json,.pdf" disabled="@uploading" />
 
-@if (lastResult is not null)
-{
-    <p class="success">
-        Документ #@lastResult.DocumentId: чанков @lastResult.ChunksCreated,
-        исход @(lastResult.Outcome == IngestOutcome.Duplicate ? "дубликат (содержимое не изменилось)" : "создан")@(lastResult.SupersededDocumentId is { } superseded ? $", заменён документ #{superseded}" : string.Empty).
-    </p>
-}
-@if (lastError is not null)
-{
-    <p class="error">@lastError</p>
-}
+<style>
+    .documents-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .documents-container h1 {
+        font-size: 2rem;
+        color: #1e3a5f;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+
+    .documents-container h2 {
+        font-size: 1.5rem;
+        color: #1e3a5f;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 2rem;
+        background-color: white;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    thead {
+        background-color: #1e3a5f;
+        color: white;
+    }
+
+    th, td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+    }
+
+    tbody tr:hover {
+        background-color: #f0f4f8;
+    }
+
+    tbody tr:nth-child(even) {
+        background-color: #f9fafb;
+    }
+
+    .upload-form {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        text-align: center;
+    }
+
+    .field {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        justify-content: center;
+    }
+
+    .field label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .field input {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    .field input:focus {
+        outline: none;
+        border-color: #1e3a5f;
+        box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.1);
+    }
+
+    .success {
+        color: #16a34a;
+        background-color: #f0fdf4;
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-top: 1rem;
+        text-align: center;
+    }
+
+    .error {
+        color: #dc2626;
+        background-color: #fef2f2;
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-top: 1rem;
+        text-align: center;
+    }
+</style>
 
 @code {
     private List<SourceDocument>? documents;
@@ -88,7 +198,7 @@ else
 
         if (string.IsNullOrWhiteSpace(title))
         {
-            lastError = "Укажите название документа.";
+            lastError = "Please enter a document title.";
             return;
         }
 
@@ -97,13 +207,13 @@ else
         {
             var authenticationState = await AuthenticationStateTask;
             var username = authenticationState.User.Identity?.Name
-                ?? throw new InvalidOperationException("Не удалось определить пользователя сессии.");
+                ?? throw new InvalidOperationException("Unable to determine session user.");
             var user = await UserStore.FindByUsernameAsync(username)
-                ?? throw new InvalidOperationException("Пользователь сессии не найден в базе.");
+                ?? throw new InvalidOperationException("Session user not found in database.");
 
             var kind = KindFromFileName(eventArgs.File.Name)
                 ?? throw new InvalidOperationException(
-                    $"Тип файла {eventArgs.File.Name} не поддерживается. Разрешены .md, .csv, .json, .pdf.");
+                    $"File type {eventArgs.File.Name} is not supported. Allowed: .md, .csv, .json, .pdf.");
 
             // OpenReadStream enforces the same browser-side cap as the API endpoint (10 MB).
             await using var stream = eventArgs.File.OpenReadStream(10 * 1024 * 1024);
