@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  labai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lab-ai-assistant
+    ports:
+      - "5000:8080"
+    volumes:
+      # Persist database and logs across container restarts
+      - labai-data:/app/data
+      - labai-logs:/app/logs
+    environment:
+      # Required: Gemini API key (mount from host or use Docker secrets in production)
+      - GEMINI_API_KEY=${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}
+      - GEMINI_EMBEDDING_MODEL=${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
+      - PII_HMAC_KEY=${PII_HMAC_KEY:-change-me-in-production}
+      - Demo__Password=${DEMO_PASSWORD:-demo123}
+      # ASP.NET Core settings
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      # Database connection string (SQLite file in /app/data)
+      - ConnectionStrings__LabDb=Data Source=/app/data/lab.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+
+volumes:
+  labai-data:
+    driver: local
+  labai-logs:
+    driver: local

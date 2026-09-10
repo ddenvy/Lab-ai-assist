@@ -1,0 +1,35 @@
+**/.git
+**/.gitignore
+**/bin
+**/obj
+**/.vs
+**/.vscode
+**/*.user
+**/*.suo
+**/node_modules
+**/wwwroot/dist
+.git
+.gitattributes
+.gitmodules
+*.md
+LICENSE
+.editorconfig
+.vs
+.vscode
+
+# Test artifacts
+**/TestResults
+**/coverage
+
+# IDE files
+.idea
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files (should be mounted as volumes)
+.env
+data/
+logs/
