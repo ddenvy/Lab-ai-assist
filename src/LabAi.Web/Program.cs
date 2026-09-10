@@ -1,6 +1,9 @@
 using LabAi.Infrastructure.Ai;
+using LabAi.Infrastructure.Persistence;
 using LabAi.Web.Endpoints;
 using LabAi.Web.Infrastructure;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 // DotNetEnv must run before the builder: CreateBuilder snapshots the process environment into
@@ -21,6 +24,18 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .Enrich.FromLogContext());
 
+    var connectionString = builder.Configuration.GetConnectionString("LabDb")
+        ?? throw new InvalidOperationException(
+            "ConnectionStrings:LabDb is not configured. Nothing can be retrieved or audited without a database.");
+
+    // SQLite cannot create the parent directory, and "unable to open database file" says nothing about
+    // which path was missing. Derived from the connection string so an absolute path works unchanged.
+    var databaseDirectory = Path.GetDirectoryName(new SqliteConnectionStringBuilder(connectionString).DataSource);
+    if (!string.IsNullOrEmpty(databaseDirectory))
+        Directory.CreateDirectory(databaseDirectory);
+
+    builder.Services.AddLabAiPersistence(connectionString);
+
     var gemini = GeminiOptionsFactory.Create(builder.Configuration);
     builder.Services.AddSingleton(gemini);
     builder.Services.AddLabAiGemini(gemini);
@@ -36,6 +51,32 @@ try
     }
 
     var app = builder.Build();
+
+    // Fail-fast here, unlike the missing Gemini key: without a database there is no corpus to search
+    // and no journal to write, so the product's central promise is unachievable and starting would
+    // only produce answers that cannot be evidenced.
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<LabAiDbContext>();
+        await db.Database.MigrateAsync();
+
+        // WAL is persistent in the database file, so one statement at startup is enough. It cannot go
+        // in a migration: migrations run inside a transaction, and journal_mode is a no-op there.
+        // Without it a writer blocks every reader, and ingest would freeze the audit page.
+        await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+
+        var seeded = await scope.ServiceProvider.GetRequiredService<DbSeeder>()
+            .SeedAsync(builder.Configuration["Demo:Password"]);
+
+        Log.Information("Database ready; seeded {CreatedCount} account(s)", seeded.Created.Count);
+
+        foreach (var user in seeded.Created.Where(u => u.Password is not null))
+        {
+            // Console only, deliberately bypassing Serilog: a generated credential must never land in
+            // logs/labai-*.log. Unreachable while Demo:Password is configured, which is the normal case.
+            Console.WriteLine($"Generated password for '{user.Username}': {user.Password}");
+        }
+    }
 
     // First in the pipeline so every downstream log line carries the id.
     app.UseMiddleware<CorrelationIdMiddleware>();

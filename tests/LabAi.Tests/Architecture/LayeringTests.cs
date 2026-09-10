@@ -10,7 +10,7 @@ namespace LabAi.Tests.Architecture;
 public sealed class LayeringTests
 {
     private static readonly Assembly Domain = typeof(LabAi.Domain.Abstractions.IGroundedChatClient).Assembly;
-    private static readonly Assembly Application = typeof(LabAi.Application.Marker).Assembly;
+    private static readonly Assembly Application = typeof(LabAi.Application.Auth.AuthService).Assembly;
 
     [Fact]
     public void Domain_ReferencesNoOtherProject()
@@ -21,25 +21,24 @@ public sealed class LayeringTests
     [Fact]
     public void Domain_ReferencesNoFrameworkPackages()
     {
-        // BCL only: anything from EF Core, Semantic Kernel, ASP.NET or Serilog is a violation.
-        var forbidden = Domain.GetReferencedAssemblies()
-            .Where(a => a.Name is not null && (
-                a.Name.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal) ||
-                a.Name.StartsWith("Microsoft.SemanticKernel", StringComparison.Ordinal) ||
-                a.Name.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal) ||
-                a.Name.StartsWith("Serilog", StringComparison.Ordinal)))
-            .Select(a => a.Name)
-            .ToArray();
+        ForbiddenFrameworkReferences(Domain).Should().BeEmpty();
+    }
 
-        forbidden.Should().BeEmpty();
+    [Fact]
+    public void Application_ReferencesNoFrameworkPackages()
+    {
+        // Application is BCL-only by design: chunking, masking, hashing, cosine and prompt composition
+        // are all pure. ILogger<T> here would be the first crack, and it is cheap to catch it now.
+        ForbiddenFrameworkReferences(Application).Should().BeEmpty();
     }
 
     [Fact]
     public void Application_DoesNotReferenceInfrastructureOrWeb()
     {
-        // Only the forbidden direction is asserted. A positive "must reference Domain" check is
-        // unreliable: the compiler omits assembly references that the code never actually uses,
-        // so the metadata list is empty until Application touches a Domain type.
+        // Only the forbidden direction is asserted. A positive "must reference Domain" check stays out
+        // even though Application now does use Domain types: the compiler omits assembly references the
+        // code never touches, so such an assertion would start failing for a harmless reason the moment
+        // the last Domain usage moved elsewhere.
         ReferencedProjectNames(Application)
             .Should()
             .NotContain(["LabAi.Infrastructure", "LabAi.Web"]);
@@ -49,6 +48,17 @@ public sealed class LayeringTests
         assembly.GetReferencedAssemblies()
             .Select(a => a.Name)
             .Where(n => n is not null && n.StartsWith("LabAi.", StringComparison.Ordinal))
+            .Select(n => n!)
+            .ToArray();
+
+    private static string[] ForbiddenFrameworkReferences(Assembly assembly) =>
+        assembly.GetReferencedAssemblies()
+            .Select(a => a.Name)
+            .Where(n => n is not null && (
+                n.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal) ||
+                n.StartsWith("Microsoft.SemanticKernel", StringComparison.Ordinal) ||
+                n.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal) ||
+                n.StartsWith("Serilog", StringComparison.Ordinal)))
             .Select(n => n!)
             .ToArray();
 }
