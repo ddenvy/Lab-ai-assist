@@ -48,7 +48,7 @@ append-only аудита под Part 11. Формат `Mini-CDS\Reports\1.csv` �
 
 | Milestone | Описание | Статус |
 |-----------|----------|--------|
-| 1 | Semantic Kernel + базовый чат (каркас, .env, Serilog, Gemini-адаптеры) | 🔨 В работе (часть 1/3 закрыта, 3/3 tests) |
+| 1 | Semantic Kernel + базовый чат (каркас, .env, Serilog, Gemini-адаптеры) | 🔨 В работе (часть 2/3 закрыта, 13/13 tests) |
 | 2 | Ingest: парсинг + чанки + метаданные | ⬜ Не начат |
 | 3 | Embeddings + vector store + поиск top-k | ⬜ Не начат |
 | 4 | Grounded-генерация + citations + «не знаю» | ⬜ Не начат |
@@ -77,11 +77,15 @@ append-only аудита под Part 11. Формат `Mini-CDS\Reports\1.csv` �
 | Не стриминг в v1 | Детекция отказа, выделение «Обоснование» и запись аудита требуют полного текста — стриминг всё равно буферизуется в строку, удваивая поверхность альфа-коннектора |
 | Append-only в 2 слоя (EF-интерцептор + SQL-триггеры) | Интерцептор ловит мутации через EF до генерации SQL; триггеры ловят сырой SQL в обход EF. Каждый слой закрывает свой вектор |
 | Детерминированные токены маскирования | Один и тот же вход обязан давать один и тот же `PromptHash` навсегда; случайный или счётчиковый токен сломал бы воспроизводимость доказательства |
+| Хост стартует без `GEMINI_API_KEY` — warning, а не fail-fast (осознанное расхождение с планом) | План требовал fail-fast, но golden set и E2E на `WebApplicationFactory` обязаны поднимать приложение **без ключа**, иначе CI не запускается вовсе. Компромисс: warning при старте, описательное исключение при первом обращении внутри адаптера, `geminiKeyPresent` в `/health`. Деградация видна, но не блокирует не-AI маршруты |
 
 ## Известные технические долги
 
 - `Marker.cs` в Domain и Application — временный якорь сборки, чтобы `LayeringTests` могли ссылаться
   на пустые проекты. Удалить в Milestone 2, когда появятся реальные типы.
+- `/health` сейчас отвечает только про конфигурацию Gemini (`geminiKeyPresent`, модели). По плану он
+  обязан также сообщать доступность БД и размер векторного индекса — обе проверки физически нечего
+  вызывать до Milestone 2 (`LabAiDbContext`) и Milestone 3 (`EfVectorStore`). Расширить там же.
 - SHA256 hash chain журнала (`PrevHash`/`Hash` + `VerifyChainAsync`) — осознанно отложен: пользователь
   выбрал более простой вариант append-only. Дизайн оставляет место (детерминированный `max(Id)+1`
   в транзакции), реализация ~1 день, паттерн целиком есть в Mini-CDS.
@@ -213,3 +217,89 @@ append-only аудита под Part 11. Формат `Mini-CDS\Reports\1.csv` �
 **Итог:** сборка чистая — **0 предупреждений, 0 ошибок**; тесты **3/3 зелёные**. Каркас solution
 готов, пакеты зарезолвлены, альфа-коннектор на net10.0 работает. Milestone 1 открыт (часть 1/3).
 **Далее:** часть 2 — загрузка `.env`, Serilog с compact JSON, correlation-id middleware, `/health`.
+
+---
+
+### 2026-09-10 — Milestone 1, часть 2: Конфигурация, Serilog, correlation id, /health
+
+**План:** научить хост читать `.env`, писать структурированные логи, сквозить correlation id через
+все события одного запроса и отдавать `/health` — так, чтобы ни одна строка лога и ни одно поле
+ответа не содержали секрет.
+
+**Сделано:**
+- `src/LabAi.Infrastructure/Ai/GeminiOptions.cs` — чистые данные: `ApiKey`, `ChatModelId`,
+  `EmbeddingModelId` + вычисляемое `IsConfigured`. Все свойства `init`, объект неизменяемый и
+  регистрируется как singleton.
+- `src/LabAi.Web/Infrastructure/GeminiOptionsFactory.cs` — разрешение опций: переменные окружения
+  (`GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_EMBEDDING_MODEL`) побеждают секцию `Gemini` в
+  `appsettings.json`, дальше — значения по умолчанию. Пустая строка и whitespace считаются
+  «не задано».
+- `src/LabAi.Web/Infrastructure/CorrelationIdMiddleware.cs` — принимает `X-Correlation-Id` извне,
+  иначе берёт `Activity.Current?.Id`, иначе генерирует `Guid("N")`; кладёт в `HttpContext.Items`,
+  эхом возвращает в заголовке ответа и пушит в `LogContext`.
+- `src/LabAi.Web/Endpoints/HealthEndpoints.cs` + `HealthResponse` — `GET /health`: `status`
+  (`healthy` / `degraded`), `geminiKeyPresent`, `chatModel`, `embeddingModel`, `correlationId`.
+- `src/LabAi.Web/Program.cs` переписан: `DotNetEnv.Env.TraversePath().Load()` → bootstrap-логгер →
+  `UseSerilog(ReadFrom.Configuration + Enrich.FromLogContext)` → регистрация `GeminiOptions` →
+  `UseMiddleware<CorrelationIdMiddleware>` → `UseSerilogRequestLogging` → маршруты. Всё обёрнуто в
+  `try/catch(Log.Fatal)/finally(Log.CloseAndFlush)` — паттерн из Mini-CDS.
+- `appsettings.json`: блок `Gemini` с **пустым** `ApiKey` (секрет в конфиг не кладётся принципиально),
+  блок `Serilog` — Console + File (`logs/labai-.log`, `rollingInterval: Day`,
+  `rollOnFileSizeLimit`, 10 МБ, `CompactJsonFormatter`), `Properties:Application = LabAi`.
+- `.gitattributes` — `* text=auto eol=lf` плюс явные правила по расширениям и `binary` для
+  `.png/.gif/.pdf/.db`.
+- Тесты: `CorrelationIdMiddlewareTests` (5) и `GeminiOptionsFactoryTests` (5).
+
+**Проблемы / ловушки:**
+- **План противоречил сам себе, и это выяснилось только сейчас.** В плане написано «fail-fast при
+  отсутствии `GEMINI_API_KEY`», а в разделе тестирования — что golden set и E2E на
+  `WebApplicationFactory` должны проходить **офлайн, без ключа**. Fail-fast на старте сделал бы
+  невозможным сам хост в тестах. Разрешил в пользу деградации: warning при старте, исключение при
+  первом реальном обращении к адаптеру (часть 3), `geminiKeyPresent` в `/health`. Решение занесено
+  в таблицу «зафиксированных навсегда» как осознанное расхождение с планом.
+- **`DotNetEnv` обязан вызываться до `WebApplication.CreateBuilder`.** `CreateBuilder` одноразово
+  снимает окружение процесса в `IConfiguration`; всё, что DotNetEnv выставит позже, конфигурация уже
+  не увидит. Проверил практически: с `.env` на диске `/health` вернул `healthy`, без него — `degraded`.
+- **Одна строка лога упорно приходила без `CorrelationId`.** Это оказался `Request finished ...` от
+  `Microsoft.AspNetCore.Hosting.Diagnostics`: hosting-слой пишет его **снаружи** middleware pipeline,
+  поэтому `LogContext`, запушенный внутри конвейера, для него недостижим в принципе. Заодно строка
+  дублировала Serilog-овский `HTTP {RequestMethod} {RequestPath} responded {StatusCode}`. Поднял
+  override `Microsoft.AspNetCore.Hosting` до `Warning`. Аналогично приглушил
+  `Microsoft.AspNetCore.Http.Result` — `OkObjectResult` на каждый ответ писал две строки
+  «Writing value of type ... as Json». После правки: **ноль** request-scoped строк без `CorrelationId`
+  (проверено `grep '"RequestPath"' | grep -vc CorrelationId` → `0`).
+- **Порядок `UseSerilogRequestLogging` относительно correlation middleware критичен, и я сначала
+  поставил его неправильно мысленно.** Middleware dispose'ит `LogContext.PushProperty`, когда
+  downstream возвращается. Если зарегистрировать request logging **до** correlation middleware, его
+  completion-событие окажется уже вне scope и придёт без id. Поставил после — и зафиксировал
+  причину комментарием в `Program.cs`, чтобы при будущем рефакторинге порядок не «починили».
+- **`GeminiOptionsFactory` чуть не уехал в Infrastructure.** `IConfiguration` там доступен только
+  транзитивно — через `DotNetEnv` → `Microsoft.Extensions.Configuration.Abstractions` **1.1.2**.
+  Опереться на транзитивную зависимость с таким полом — значит получить сюрприз при первом же
+  обновлении DotNetEnv. Разнёс: данные (`GeminiOptions`) в Infrastructure, чтение env+config —
+  в Web, это буквально работа composition root. Побочный выигрыш: `AddLabAiGemini` в части 3 примет
+  готовые опции, и Infrastructure не понадобится `IConfiguration` вообще.
+- **`Activity.Current?.Id` — это не GUID.** В реальном хосте ASP.NET Core создаёт Activity на запрос,
+  и id приходит в W3C-формате `00-245e8ea0...-88b4af48...-00`, тогда как в unit-тесте `Activity.Current`
+  равен `null` и срабатывает ветка `Guid("N")`. Наивная assertion на «32 hex-символа» прошла бы в
+  тесте и упала в рантайме. Поэтому тест утверждает только непустоту и **совпадение** id в заголовке,
+  в `HttpContext.Items` и в том, что видит downstream.
+- **Проверку приоритета env нельзя делать через `Environment.SetEnvironmentVariable`.** Переменные
+  окружения процесса глобальны, а xunit гоняет тестовые классы параллельно — получилась бы гонка между
+  `GeminiOptionsFactoryTests` и будущими тестами, читающими тот же `GEMINI_API_KEY`. Сделал вторую
+  перегрузку фабрики с `Func<string, string?>`, и тест стал полностью герметичным.
+- **Гигиена секрета при ручном прогоне.** Чтобы проверить ветку `healthy`, мне понадобился ключ.
+  Создал временный `.env` с заведомо фиктивным значением, предварительно убедившись
+  `git check-ignore -v .env` → `.gitignore:2`, и удалил файл сразу после проверки (`ls .env` →
+  «No such file»). Настоящий ключ из `C:\Develop\JobJoy\backend\.env` не читался и не копировался;
+  в лог и в ответ `/health` попадает только булев `geminiKeyPresent`, никогда не значение.
+- Могло сломаться, но не сломалось: каталог `logs/` Serilog File sink создаёт сам, отдельной
+  инициализации не нужно; `DotNetEnv.Env.TraversePath().Load()` при отсутствии `.env` молча
+  возвращает пустой результат, а не бросает — иначе хост без ключа не стартовал бы вовсе.
+
+**Итог:** сборка **0 предупреждений, 0 ошибок**; тесты **13/13 зелёные** (3 архитектурных + 10 новых).
+Ручной прогон хоста: `GET /` → 200; `GET /health` → 200 с `degraded` без ключа и `healthy` с ключом;
+`X-Correlation-Id` отдаётся в ответе и пробрасывается из входящего заголовка; все request-scoped строки
+compact-JSON лога несут `CorrelationId`. Milestone 1 — часть 2/3 закрыта.
+**Далее:** часть 3 — адаптеры `GeminiChatClient` и `GeminiEmbeddingService`, временный `POST /api/chat`,
+ADR-0002, live-смоук тесты.
