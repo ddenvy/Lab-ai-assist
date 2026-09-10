@@ -11,6 +11,9 @@ public sealed class Chunk
 
     public long DocumentId { get; init; }
 
+    /// <summary>Navigation property to the parent document for citation metadata.</summary>
+    public SourceDocument? Document { get; init; }
+
     /// <summary>Position within the document, zero-based. Together with <see cref="DocumentId"/> this is unique.</summary>
     public int ChunkIndex { get; init; }
 

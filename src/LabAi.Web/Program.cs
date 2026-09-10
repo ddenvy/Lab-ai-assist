@@ -1,3 +1,5 @@
+using LabAi.Application.Rag;
+using LabAi.Domain.Abstractions;
 using LabAi.Infrastructure.Ai;
 using LabAi.Infrastructure.Chunking;
 using LabAi.Infrastructure.Ingest;
@@ -84,12 +86,34 @@ try
     builder.Services.AddAuthorization();
     builder.Services.AddCascadingAuthenticationState();
 
+    // Rate limiter: 10 requests per minute per authenticated user (deferred to M5 due to .NET 10 API changes).
+    // TODO: Re-enable with correct .NET 10 syntax.
+
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
 
     var gemini = GeminiOptionsFactory.Create(builder.Configuration);
     builder.Services.AddSingleton(gemini);
     builder.Services.AddLabAiGemini(gemini);
+
+    // RAG pipeline services (M4).
+    var ragConfig = builder.Configuration.GetSection("Rag");
+
+    // PII masking for audit trail and prompt composition.
+    builder.Services.AddSingleton<IPiiMasker, LabAi.Application.Security.RegexPiiMasker>();
+
+    builder.Services.AddSingleton<IRagQueryService>(sp => new LabAi.Application.Rag.RagQueryPipeline(
+        sp.GetRequiredService<IEmbeddingService>(),
+        sp.GetRequiredService<IVectorStore>(),
+        sp.GetRequiredService<IGroundedChatClient>(),
+        sp.GetRequiredService<IAiAuditTrail>(),
+        sp.GetRequiredService<IDocumentRepository>(),
+        sp.GetRequiredService<IPiiMasker>(),
+        ragConfig.GetValue("TopK", 5),
+        ragConfig.GetValue("MinScore", 0.35)));
+
+    // AI audit trail — stub for M4, real implementation in M5.
+    builder.Services.AddSingleton<IAiAuditTrail, StubAiAuditTrail>();
 
     if (!gemini.IsConfigured)
     {
@@ -165,10 +189,14 @@ try
     app.MapStaticAssets();
     app.MapHealthEndpoints();
 
+    // Rate limiter: deferred to M5 due to .NET 10 API changes.
+    // app.UseRateLimiter();
+
     // Temporary smoke endpoint for the Gemini wiring; replaced by POST /api/ask in Milestone 4.
     app.MapChatEndpoints();
     app.MapAuthEndpoints();
     app.MapIngestEndpoints();
+    app.MapAskEndpoints();
 
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();

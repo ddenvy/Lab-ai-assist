@@ -28,4 +28,7 @@ public interface IDocumentRepository
         Func<long, IReadOnlyList<Entities.Chunk>> buildChunks,
         long? supersededDocumentId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Retrieves chunks by their IDs for citation metadata resolution.</summary>
+    Task<IReadOnlyDictionary<long, Entities.Chunk>> GetChunksByIdsAsync(IReadOnlyList<long> chunkIds, CancellationToken cancellationToken = default);
 }

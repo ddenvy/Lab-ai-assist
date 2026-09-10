@@ -65,4 +65,18 @@ public sealed class EfDocumentRepository(LabAiDbContext dbContext) : IDocumentRe
         await transaction.CommitAsync(cancellationToken);
         return document.Id;
     }
+
+    public async Task<IReadOnlyDictionary<long, Chunk>> GetChunksByIdsAsync(IReadOnlyList<long> chunkIds, CancellationToken cancellationToken = default)
+    {
+        if (chunkIds.Count == 0)
+            return new Dictionary<long, Chunk>();
+
+        var chunks = await dbContext.Chunks
+            .AsNoTracking()
+            .Include(c => c.Document)
+            .Where(c => chunkIds.Contains(c.Id))
+            .ToListAsync(cancellationToken);
+
+        return chunks.ToDictionary(c => c.Id, c => c);
+    }
 }

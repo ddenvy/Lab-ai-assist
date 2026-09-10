@@ -29,7 +29,7 @@ public class ChunkConfiguration : IEntityTypeConfiguration<Chunk>
 
         // Restrict, not Cascade: a document's chunks are the citations old audit rows point at, so
         // removing them would silently invalidate evidence that is still on screen.
-        builder.HasOne<SourceDocument>()
+        builder.HasOne(c => c.Document)
             .WithMany()
             .HasForeignKey(c => c.DocumentId)
             .OnDelete(DeleteBehavior.Restrict);

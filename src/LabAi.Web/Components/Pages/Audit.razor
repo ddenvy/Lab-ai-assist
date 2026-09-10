@@ -1,0 +1,85 @@
+@page "/audit"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject IAiAuditTrail AuditTrail
+
+<PageTitle>Audit Journal</PageTitle>
+<h1>AI Audit Journal</h1>
+
+@if (entries is null)
+{
+    <p>Loading...</p>
+}
+else if (entries.Count == 0)
+{
+    <p>No audit entries yet. Ask a question to create the first entry.</p>
+}
+else
+{
+    <table class="audit-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Question</th>
+                <th>Answered?</th>
+                <th>Refusal</th>
+                <th>Model</th>
+                <th>Citations</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in entries)
+            {
+                <tr>
+                    <td>@entry.Id</td>
+                    <td>@entry.TimestampUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</td>
+                    <td>@entry.ActorUserId</td>
+                    <td class="text-truncate" title="@entry.QuestionMasked">@entry.QuestionMasked</td>
+                    <td>@(entry.AnsweredFromContext ? "Yes" : "No")</td>
+                    <td>@entry.RefusalStage</td>
+                    <td>@entry.Model</td>
+                    <td>@entry.RetrievedChunkIds.Length</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<AuditEntry>? entries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        entries = (await AuditTrail.ListAsync()).ToList();
+    }
+}
+
+<style>
+.audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+.audit-table th, .audit-table td {
+    border: 1px solid #ddd;
+    padding: 0.5rem;
+    text-align: left;
+}
+.audit-table th {
+    background-color: #f5f5f5;
+    font-weight: 600;
+}
+.text-truncate {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+</style>

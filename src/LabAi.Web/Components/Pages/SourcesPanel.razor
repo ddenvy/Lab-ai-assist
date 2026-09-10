@@ -1,0 +1,79 @@
+@using LabAi.Domain.ValueObjects
+
+/// <summary>
+/// Displays detailed citation information for a single source chunk referenced in an answer.
+/// Shows the document title, version, section path, and the actual chunk text.
+/// </summary>
+<div class="source-panel">
+    <div class="source-header">
+        <span class="citation-tag">[S@Citation.Index]</span>
+        <span class="document-title">@Citation.DocumentTitle</span>
+        <span class="version-badge">v@Citation.Version</span>
+    </div>
+    <div class="section-path">@Citation.SectionPath</div>
+    <div class="chunk-text">@Citation.Text</div>
+    <div class="score">Score: @Citation.Score.ToString("F3")</div>
+</div>
+
+@code {
+    [Parameter] public SourceCitationDetail Citation { get; set; } = default!;
+}
+
+<style>
+.source-panel {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background-color: #fafafa;
+}
+
+.source-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.citation-tag {
+    background-color: #1e3a5f;
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.document-title {
+    font-weight: 600;
+    color: #333;
+}
+
+.version-badge {
+    background-color: #e0e0e0;
+    color: #666;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+}
+
+.section-path {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    font-style: italic;
+}
+
+.chunk-text {
+    color: #333;
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+    white-space: pre-wrap;
+}
+
+.score {
+    color: #999;
+    font-size: 0.8rem;
+    text-align: right;
+}
+</style>
