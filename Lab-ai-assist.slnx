@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LabAi.Domain/LabAi.Domain.csproj" />
+    <Project Path="src/LabAi.Application/LabAi.Application.csproj" />
+    <Project Path="src/LabAi.Infrastructure/LabAi.Infrastructure.csproj" />
+    <Project Path="src/LabAi.Web/LabAi.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LabAi.Tests/LabAi.Tests.csproj" />
+  </Folder>
+</Solution>

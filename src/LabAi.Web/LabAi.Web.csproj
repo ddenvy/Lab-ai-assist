@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>LabAi.Web</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LabAi.Application\LabAi.Application.csproj" />
+    <ProjectReference Include="..\LabAi.Domain\LabAi.Domain.csproj" />
+    <ProjectReference Include="..\LabAi.Infrastructure\LabAi.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Serilog.AspNetCore 10.0.0 transitively brings the exact versions the plan pins:
+      Extensions.Hosting 10.0.0, Formatting.Compact 3.0.0, Settings.Configuration 10.0.0,
+      Sinks.File 7.0.0, Sinks.Console 6.1.1. Declaring them again would only risk a conflict.
+    -->
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

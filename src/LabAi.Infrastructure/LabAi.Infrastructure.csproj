@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LabAi.Application\LabAi.Application.csproj" />
+    <ProjectReference Include="..\LabAi.Domain\LabAi.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The Google connector has no stable release; 1.80.1-alpha is pinned exactly (no floating)
+      because its embedding surface already churned once (AddGoogleAIEmbeddingGeneration is now
+      [Obsolete] in favour of AddGoogleAIEmbeddingGenerator). See docs/adr/ADR-0002.
+      Do NOT add a direct Google.GenAI reference: the connector is compiled against 0.11.0 and
+      NuGet would resolve a newer, untested major.
+    -->
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.80.1" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" Version="1.80.1-alpha" />
+    <PackageReference Include="DotNetEnv" Version="3.2.0" />
+  </ItemGroup>
+
+</Project>

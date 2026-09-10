@@ -1,0 +1,63 @@
+# ---- Secrets (never commit) ----
+.env
+.env.local
+*.pfx
+*.snk
+
+# ---- .NET ----
+bin/
+obj/
+artifacts/
+out/
+build/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.csproj.user
+*.csproj.Shared
+*.csproj.filters
+*.csproj.metaproj
+*.dotm
+*.tmp
+*.tmp.proj
+*.bak
+*.cache
+*.pdb
+*.ilk
+*.log
+*.tlb
+*.tli
+*.tlh
+*.tmp_proj
+
+# ---- Runtime data: SQLite DB, vector index, Serilog logs ----
+data/
+logs/
+*.db
+*.db-shm
+*.db-wal
+*_efcore_shadow.db
+
+# ---- Visual Studio / Rider / VS Code ----
+.vs/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---- NuGet / Paket ----
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+paket-files/
+paket.lock.nuget
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
