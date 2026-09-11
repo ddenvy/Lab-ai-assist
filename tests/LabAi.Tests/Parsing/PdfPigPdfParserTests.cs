@@ -41,13 +41,13 @@ public sealed class PdfPigPdfParserTests
     {
         var parsed = parser.Parse(TwoPagePdf());
 
-        // The fixture is in Russian on purpose: the demo corpus is Russian, and Cyrillic contains
-        // no ligatures. Latin fixtures through QuestPDF's default font lose "ti" glyphs entirely
-        // (discretionary ligature with no Unicode mapping), which is a font artifact, not a parser one.
-        parsed.Sections[0].Text.Should().Contain("системной пригодности");
-        parsed.Sections[0].Text.Should().NotContain("весов");
-        parsed.Sections[1].Text.Should().Contain("аналитических весов");
-        parsed.Sections[1].Text.Should().NotContain("пригодности");
+        // Keep the Latin fixture free of the "ti" bigram on purpose: QuestPDF's default font
+        // renders "ti" as a discretionary ligature with no Unicode mapping, so PdfPig loses
+        // those glyphs entirely — a font artifact, not a parser one.
+        parsed.Sections[0].Text.Should().Contain("suitability");
+        parsed.Sections[0].Text.Should().NotContain("balances");
+        parsed.Sections[1].Text.Should().Contain("balances");
+        parsed.Sections[1].Text.Should().NotContain("suitability");
     }
 
     [Fact]
@@ -59,16 +59,16 @@ public sealed class PdfPigPdfParserTests
                 page.Margin(36);
                 page.Content().Column(column =>
                 {
-                    column.Item().Text("Первая строка поверки");
-                    column.Item().Text("Вторая строка поверки");
+                    column.Item().Text("Primary check line.");
+                    column.Item().Text("Secondary check line.");
                 });
             })).GeneratePdf();
 
         var parsed = parser.Parse(content);
 
         var lines = parsed.Sections.Single().Text.Split('\n');
-        lines.Should().Contain(l => l.StartsWith("Первая строка"));
-        lines.Should().Contain(l => l.StartsWith("Вторая строка"));
+        lines.Should().Contain(l => l.StartsWith("Primary check"));
+        lines.Should().Contain(l => l.StartsWith("Secondary check"));
     }
 
     [Fact]
@@ -83,14 +83,14 @@ public sealed class PdfPigPdfParserTests
         {
             page.Size(PageSizes.A4);
             page.Margin(36);
-            page.Content().Text("Критерии системной пригодности для хроматографа ВЭЖХ.");
+            page.Content().Text("System suitability criteria for HPLC.");
         });
 
         container.Page(page =>
         {
             page.Size(PageSizes.A4);
             page.Margin(36);
-            page.Content().Text("Ежедневная поверка аналитических весов.");
+            page.Content().Text("Daily check of lab balances.");
         });
     }).GeneratePdf();
 }

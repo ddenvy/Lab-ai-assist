@@ -25,13 +25,13 @@ public sealed class CorpusIngestTests : IDisposable
 
     private static readonly CorpusFile[] Corpus =
     [
-        new("SOP-QC-001-hplc-system-suitability.md", DocumentKind.Markdown, "SOP-QC-001 Системная пригодность ВЭЖХ", 3, 6),
-        new("SOP-QC-002-analytical-balance.md", DocumentKind.Markdown, "SOP-QC-002 Ежедневная проверка аналитических весов", 2, 7),
-        new("SOP-QC-003-ph-meter-calibration.md", DocumentKind.Markdown, "SOP-QC-003 Калибровка pH-метра", 2, 6),
-        new("SOP-QC-004-pipette-qc.md", DocumentKind.Markdown, "SOP-QC-004 Квартальная проверка дозаторов", 1, 6),
-        new("SOP-QA-005-oos-investigation.md", DocumentKind.Markdown, "SOP-QA-005 Расследование результатов вне спецификации (OOS)", 1, 6),
-        new(Path.Combine("instrument", "hplc-run-001.csv"), DocumentKind.Csv, "hplc-run-001 Хроматограмма USP Method 1", 1, 2),
-        new(Path.Combine("instrument", "balance-log-2026-09.json"), DocumentKind.Json, "balance-log-2026-09 Журнал проверки весов", 1, 1),
+        new("SOP-QC-001-hplc-system-suitability.md", DocumentKind.Markdown, "SOP-QC-001 HPLC System Suitability", 3, 6),
+        new("SOP-QC-002-analytical-balance.md", DocumentKind.Markdown, "SOP-QC-002 Daily Check of Analytical Balances", 2, 7),
+        new("SOP-QC-003-ph-meter-calibration.md", DocumentKind.Markdown, "SOP-QC-003 pH Meter Calibration", 2, 6),
+        new("SOP-QC-004-pipette-qc.md", DocumentKind.Markdown, "SOP-QC-004 Quarterly Pipette Check", 1, 6),
+        new("SOP-QA-005-oos-investigation.md", DocumentKind.Markdown, "SOP-QA-005 Out-of-Specification (OOS) Results Investigation", 1, 6),
+        new(Path.Combine("instrument", "hplc-run-001.csv"), DocumentKind.Csv, "hplc-run-001 Chromatogram USP Method 1", 1, 2),
+        new(Path.Combine("instrument", "balance-log-2026-09.json"), DocumentKind.Json, "balance-log-2026-09 Balance Check Log", 1, 1),
     ];
 
     private static readonly string corpusDirectory = FindCorpusDirectory();

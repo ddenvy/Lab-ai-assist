@@ -49,9 +49,9 @@ public sealed class IngestPipelineTests
     public async Task NewContentIsEmbeddedInBatchesAndStoredAsNormalizedChunks()
     {
         var drafts = Enumerable.Range(0, 5)
-            .Select(i => new ChunkDraft("SOP > 4.2", $"текст-{i}", LineStart: i + 1, LineEnd: i + 1))
+            .Select(i => new ChunkDraft("SOP > 4.2", $"text-{i}", LineStart: i + 1, LineEnd: i + 1))
             .ToList();
-        parser.Parse(Arg.Any<byte[]>()).Returns(new ParsedDocument([new DocumentSection("SOP > 4.2", "любой")]));
+        parser.Parse(Arg.Any<byte[]>()).Returns(new ParsedDocument([new DocumentSection("SOP > 4.2", "anything")]));
         strategy.Chunk(Arg.Any<ParsedDocument>()).Returns(drafts);
 
         var capturedBatches = new List<IReadOnlyList<string>>();
@@ -107,7 +107,7 @@ public sealed class IngestPipelineTests
     public async Task EmbeddingInputCarriesTheDeterministicContextHeader()
     {
         parser.Parse(Arg.Any<byte[]>()).Returns(ParsedDocument.Empty);
-        strategy.Chunk(Arg.Any<ParsedDocument>()).Returns([new ChunkDraft("SOP > 4.2", "текст чанка")]);
+        strategy.Chunk(Arg.Any<ParsedDocument>()).Returns([new ChunkDraft("SOP > 4.2", "chunk text")]);
 
         IReadOnlyList<string>? firstBatch = null;
         embeddings.EmbedAsync(Arg.Do<IReadOnlyList<string>>(t => firstBatch ??= t), Arg.Any<CancellationToken>())
@@ -118,7 +118,7 @@ public sealed class IngestPipelineTests
         await CreatePipeline().IngestAsync(Request());
 
         firstBatch.Should().NotBeNull();
-        firstBatch![0].Should().Be("SOP-QC-001 (v3) — SOP > 4.2\nтекст чанка");
+        firstBatch![0].Should().Be("SOP-QC-001 (v3) — SOP > 4.2\nchunk text");
     }
 
     [Fact]

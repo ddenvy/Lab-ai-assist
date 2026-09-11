@@ -12,17 +12,17 @@ public sealed class MarkdownChunkerTests
     {
         var document = new ParsedDocument(
         [
-            new DocumentSection("SOP-QC-001 > 1. Назначение", "Раздел первый.", LineStart: 1, LineEnd: 1),
-            new DocumentSection("SOP-QC-002 > 2. Область", "Раздел второй.", LineStart: 5, LineEnd: 5),
+            new DocumentSection("SOP-QC-001 > 1. Purpose", "First section.", LineStart: 1, LineEnd: 1),
+            new DocumentSection("SOP-QC-002 > 2. Scope", "Second section.", LineStart: 5, LineEnd: 5),
         ]);
 
         var chunks = chunker.Chunk(document);
 
         chunks.Should().HaveCount(2);
-        chunks[0].SectionPath.Should().Be("SOP-QC-001 > 1. Назначение");
-        chunks[0].Text.Should().Be("Раздел первый.");
+        chunks[0].SectionPath.Should().Be("SOP-QC-001 > 1. Purpose");
+        chunks[0].Text.Should().Be("First section.");
         chunks[0].LineStart.Should().Be(1);
-        chunks[1].SectionPath.Should().Be("SOP-QC-002 > 2. Область");
+        chunks[1].SectionPath.Should().Be("SOP-QC-002 > 2. Scope");
     }
 
     [Fact]
@@ -30,15 +30,15 @@ public sealed class MarkdownChunkerTests
     {
         var document = new ParsedDocument(
         [
-            new DocumentSection("SOP > 4 > 4.1 Скорость", "Поток 1.0 мл/мин.", LineStart: 3, LineEnd: 4),
-            new DocumentSection("SOP > 4 > 4.2 Температура", "Колонка 30 C.", LineStart: 6, LineEnd: 7),
+            new DocumentSection("SOP > 4 > 4.1 Flow Rate", "Flow 1.0 mL/min.", LineStart: 3, LineEnd: 4),
+            new DocumentSection("SOP > 4 > 4.2 Temperature", "Column 30 C.", LineStart: 6, LineEnd: 7),
         ]);
 
         var chunks = chunker.Chunk(document);
 
         chunks.Should().HaveCount(1);
         chunks[0].SectionPath.Should().Be("SOP > 4");
-        chunks[0].Text.Should().Be("Поток 1.0 мл/мин.\nКолонка 30 C.");
+        chunks[0].Text.Should().Be("Flow 1.0 mL/min.\nColumn 30 C.");
         chunks[0].LineStart.Should().Be(3);
         chunks[0].LineEnd.Should().Be(7);
     }
@@ -66,8 +66,8 @@ public sealed class MarkdownChunkerTests
     {
         var document = new ParsedDocument(
         [
-            new DocumentSection("SOP1 > A", "Текст один."),
-            new DocumentSection("SOP2 > B", "Текст два."),
+            new DocumentSection("SOP1 > A", "Text one."),
+            new DocumentSection("SOP2 > B", "Text two."),
         ]);
 
         var chunks = chunker.Chunk(document);
@@ -80,23 +80,23 @@ public sealed class MarkdownChunkerTests
     {
         var document = new ParsedDocument(
         [
-            new DocumentSection("", "Вводный абзац."),
-            new DocumentSection("", "Второй абзац."),
+            new DocumentSection("", "Introductory paragraph."),
+            new DocumentSection("", "Second paragraph."),
         ]);
 
         var chunks = chunker.Chunk(document);
 
         chunks.Should().HaveCount(1);
         chunks[0].SectionPath.Should().BeEmpty();
-        chunks[0].Text.Should().Be("Вводный абзац.\nВторой абзац.");
+        chunks[0].Text.Should().Be("Introductory paragraph.\nSecond paragraph.");
     }
 
     [Fact]
     public void OversizedSectionSplitsOnSentenceBoundariesWithRollingOverlap()
     {
-        const string first = "Первое предложение с текстом.";
-        const string second = "Второе предложение подлиннее.";
-        const string third = "Третье предложение самое длинное из всех.";
+        const string first = "First short sample sentence.";
+        const string second = "Second short sample sentence.";
+        const string third = "Third sample sentence, the longest one of all.";
         var chunker = new MarkdownChunker(maxChunkChars: 80, overlapChars: 30);
         var document = new ParsedDocument([new DocumentSection("SOP > 1", $"{first}\n{second}\n{third}")]);
 
@@ -128,29 +128,29 @@ public sealed class MarkdownChunkerTests
     {
         var chunker = new MarkdownChunker(maxChunkChars: 20, overlapChars: 5);
         var document = new ParsedDocument(
-            [new DocumentSection("SOP > 1", "Предел RSD 2.0%. Повторить трижды.")]);
+            [new DocumentSection("SOP > 1", "RSD limit 2.0%. Repeat three times.")]);
 
         var chunks = chunker.Chunk(document);
 
         // "2.0%" must stay inside one unit; the split happens only after "2.0%.".
         chunks.Should().HaveCount(2);
-        chunks[0].Text.Should().Be("Предел RSD 2.0%.");
-        chunks[1].Text.Should().Be("Повторить трижды.");
+        chunks[0].Text.Should().Be("RSD limit 2.0%.");
+        chunks[1].Text.Should().Be("Repeat three times.");
     }
 
     [Fact]
     public void AbbreviationFollowedByANumberStaysInOneSentence()
     {
         var chunker = new MarkdownChunker(maxChunkChars: 12, overlapChars: 2);
-        const string text = "Раздел п. 4.2 закона.";
+        const string text = "Sect. 4.2 of law.";
         var document = new ParsedDocument([new DocumentSection("SOP > 1", text)]);
 
         var chunks = chunker.Chunk(document);
 
-        // One 21-char sentence over the budget of 12, so it is hard-split mid-word; a naive
-        // split at "п." would produce whole-word windows instead.
-        chunks.Select(c => c.Text.Length).Should().Equal(12, 9);
-        chunks[0].Text.Should().Be("Раздел п. 4.");
+        // One 17-char sentence over the budget of 12, so it is hard-split at the budget boundary;
+        // a naive split at "Sect." would produce whole-word windows instead.
+        chunks.Select(c => c.Text.Length).Should().Equal(12, 5);
+        chunks[0].Text.Should().Be("Sect. 4.2 of");
         string.Concat(chunks.Select(c => c.Text)).Should().Be(text);
     }
 

@@ -1,40 +1,40 @@
 ---
 doc_id: SOP-QA-005
-title: Расследование результатов вне спецификации (OOS)
+title: Out-of-Specification (OOS) Results Investigation
 version: 1
 effective_date: 2026-07-20
-owner: Отдел обеспечения качества
+owner: Quality Assurance Department
 ---
 
-## 1. Назначение
+## 1. Purpose
 
-### 1.1 Цель
-Процедура определяет порядок расследования аналитических результатов вне спецификации (out of specification, OOS) и порядок принятия решения о партии.
+### 1.1 Goal
+This procedure defines how out-of-specification (OOS) analytical results are investigated and how the batch decision is made.
 
-## 2. Область применения
+## 2. Scope
 
-### 2.1 Охват
-Применяется ко всем количественным химико-аналитическим результатам QC-лаборатории, включая ВЭЖХ, титрование и спектрофотометрию. Охватывает как подтверждённые, так и аннулированные OOS.
+### 2.1 Coverage
+It applies to all quantitative chemical-analytical results of the QC laboratory, including HPLC, titration, and spectrophotometry. It covers both confirmed and invalidated OOS results.
 
-## 3. Первичная лабораторная оценка
+## 3. Initial Laboratory Assessment
 
-### 3.1 Сроки и объём
-Аналитик уведомляет руководителя лаборатории не позднее 1 часа с момента выявления OOS. Первичная оценка (пересчёт, проверка расчёта, осмотр исходной хроматограммы) завершается в течение 1 рабочего дня. Исходные данные не уничтожаются и не изменяются.
+### 3.1 Timing and scope
+The analyst notifies the laboratory manager no later than 1 hour after an OOS is identified. The initial assessment (recalculation, calculation check, review of the original chromatogram) is completed within 1 business day. Original data must not be destroyed or modified.
 
-## 4. Проверка гипотез
+## 4. Hypothesis Testing
 
-### 4.1 Лабораторные ошибки
-Проверяются гипотезы: ошибка пробоподготовки, ошибка дозирования, деградация пробы, неисправность прибора. Каждая гипотеза подтверждается или отклоняется документально; без документального подтверждения повторная инъекция не допускается.
+### 4.1 Laboratory errors
+The following hypotheses are checked: sample preparation error, dosing error, sample degradation, instrument malfunction. Each hypothesis is documented as confirmed or rejected; reinjection is not permitted without documented justification.
 
-### 4.2 Контрольная проверка
-Системная пригодность прибора проверяется по SOP-QC-001. При подтверждении лабораторной ошибки назначается повторный анализ по свежеприготовленным растворам с обоснованием в плане расследования.
+### 4.2 Control check
+Instrument system suitability is checked per SOP-QC-001. If a laboratory error is confirmed, repeat analysis with freshly prepared solutions is assigned, with justification recorded in the investigation plan.
 
-## 5. Расширенное исследование
+## 5. Extended Investigation
 
-### 5.1 План исследования
-Если лабораторная ошибка не подтверждена, открывается полное расследование с планом не позднее 5 рабочих дней. Исследование включает анализ метода, историю прибора и производственные данные. Срок завершения расследования — не позднее 30 календарных дней.
+### 5.1 Investigation plan
+If no laboratory error is confirmed, a full investigation with a plan is opened no later than 5 business days. The investigation includes analysis of the method, instrument history, and manufacturing data. The investigation must be completed no later than 30 calendar days.
 
-## 6. Заключение о партии
+## 6. Batch Conclusion
 
-### 6.1 Решение
-Решение о годности партии принимается уполномоченным лицом качества на основании подтверждённого результата. Аннулирование OOS допустимо только при документально подтверждённой лабораторной ошибке. Все заключения фиксируются в системе качества.
+### 6.1 Decision
+The batch disposition decision is made by the authorized quality representative based on the confirmed result. Invalidation of an OOS is allowed only with a documented laboratory error. All conclusions are recorded in the quality system.

@@ -140,15 +140,15 @@ public sealed class EfDocumentRepositoryTests : IDisposable
     [Fact]
     public async Task ListActiveReturnsOnlyActiveRowsOrderedByTitle()
     {
-        db.SourceDocuments.Add(Document(sourcePath: "docs/b.md", title: "SOP Бета"));
-        db.SourceDocuments.Add(Document(sourcePath: "docs/superseded.md", title: "SOP Альфа старая", status: DocumentStatus.Superseded));
-        db.SourceDocuments.Add(Document(sourcePath: "docs/a.md", title: "SOP Альфа"));
+        db.SourceDocuments.Add(Document(sourcePath: "docs/b.md", title: "SOP Beta"));
+        db.SourceDocuments.Add(Document(sourcePath: "docs/superseded.md", title: "SOP Alpha Old", status: DocumentStatus.Superseded));
+        db.SourceDocuments.Add(Document(sourcePath: "docs/a.md", title: "SOP Alpha"));
         db.SaveChanges();
         db.ChangeTracker.Clear();
 
         var documents = await repository.ListActiveAsync();
 
-        documents.Select(d => d.Title).Should().Equal("SOP Альфа", "SOP Бета");
+        documents.Select(d => d.Title).Should().Equal("SOP Alpha", "SOP Beta");
     }
 
     private static SourceDocument Document(
@@ -171,7 +171,7 @@ public sealed class EfDocumentRepositoryTests : IDisposable
     {
         DocumentId = documentId,
         ChunkIndex = index,
-        Text = "текст",
+        Text = "text",
         SectionPath = "SOP > 1",
         ContentHash = "chunkhash",
         EmbeddingModelId = "stub-embed-model",

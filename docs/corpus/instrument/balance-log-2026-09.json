@@ -2,12 +2,12 @@
   "log_id": "BAL-2026-09",
   "instrument": "Mettler Toledo MS204TS",
   "serial_number": "BA09123456",
-  "location": "Комната 214, стол OM-2",
+  "location": "Room 214, bench OM-2",
   "readability_mg": 0.1,
   "period": "2026-09",
   "owner": {
-    "name": "Смирнова Елена Викторовна",
-    "role": "оператор весов",
+    "name": "Elena V. Smirnova",
+    "role": "balance operator",
     "email": "e.smirnova@lab-demo.example",
     "phone": "+7 (900) 123-45-67"
   },
@@ -17,5 +17,5 @@
     { "date": "2026-09-03", "weight_g": 200, "indication_g": 199.9994, "deviation_mg": -0.6, "result": "fail" },
     { "date": "2026-09-04", "weight_g": 200, "indication_g": 200.0002, "deviation_mg": 0.2, "result": "pass" }
   ],
-  "notes": "Проверка 2026-09-03 не прошла критерий ±0,5 мг из SOP-QC-002; весы выведены из эксплуатации, вызвана калибровка."
+  "notes": "The 2026-09-03 check failed the ±0.5 mg criterion from SOP-QC-002; the balance was taken out of service and calibration was called in."
 }

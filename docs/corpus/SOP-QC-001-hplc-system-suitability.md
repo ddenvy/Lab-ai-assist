@@ -1,51 +1,51 @@
 ---
 doc_id: SOP-QC-001
-title: Системная пригодность ВЭЖХ
+title: HPLC System Suitability
 version: 3
 effective_date: 2026-04-01
-owner: Отдел контроля качества
+owner: Quality Control Department
 ---
 
-## 1. Назначение
+## 1. Purpose
 
-### 1.1 Цель
-Процедура устанавливает порядок проверки системной пригодности хроматографической системы ВЭЖХ перед каждой аналитической серией. Проверка подтверждает, что хроматограф работает стабильно и получаемые количественные результаты достоверны. Аналитическая серия не начинается до выполнения всех критериев раздела 4.
+### 1.1 Goal
+This procedure establishes how the system suitability of an HPLC chromatographic system is checked before every analytical run. The check confirms that the chromatograph operates stably and that the quantitative results obtained are reliable. An analytical run must not begin until all criteria of Section 4 are met.
 
-## 2. Область применения
+## 2. Scope
 
-### 2.1 Охват
-Процедура обязательна для всех ВЭЖХ-систем лаборатории: Agilent 1260 Infinity II и Shimadzu Prominence-i. Применяется перед каждой серией количественных анализов, после планового обслуживания колонки и после переноса метода на другую систему.
+### 2.1 Coverage
+The procedure is mandatory for all HPLC systems in the laboratory: Agilent 1260 Infinity II and Shimadzu Prominence-i. It applies before every quantitative analysis run, after scheduled column maintenance, and after transferring a method to another system.
 
-## 3. Ответственность
+## 3. Responsibilities
 
-### 3.1 Исполнитель
-Химик-аналитик готовит стандартный раствор, выполняет серию из пяти последовательных инъекций и рассчитывает параметры системной пригодности.
+### 3.1 Analyst
+The analytical chemist prepares the standard solution, performs a sequence of five consecutive injections, and calculates the system suitability parameters.
 
-### 3.2 Оператор системы
-Лаборант-оператор регистрирует результаты проверки в журнале системы и прикладывает распечатку хроматограмм к аналитической серии.
+### 3.2 System operator
+The laboratory operator records the check results in the system log and attaches a printout of the chromatograms to the analytical run.
 
-## 4. Критерии приемлемости
+## 4. Acceptance Criteria
 
-### 4.1 Пределы для серии инъекций
-Система считается пригодной, если одновременно выполнены все критерии:
-- относительное стандартное отклонение (RSD) площади главного пика по пяти инъекциям — не более 2,0 %;
-- RSD времени удерживания главного пика — не более 1,0 %;
-- число теоретических тарелок (N) главного пика — не менее 2000;
-- фактор хвостования (tailing factor) главного пика — не более 2,0;
-- разрешение (Rs) между парами соседних пиков 1 и 2 — не менее 1,5.
+### 4.1 Limits for the injection sequence
+The system is considered suitable only when all criteria are met simultaneously:
+- relative standard deviation (RSD) of the main-peak area across five injections — no more than 2.0%;
+- RSD of the main-peak retention time — no more than 1.0%;
+- theoretical plate count (N) of the main peak — at least 2000;
+- tailing factor of the main peak — no more than 2.0;
+- resolution (Rs) between the adjacent pair of peaks 1 and 2 — at least 1.5.
 
-### 4.2 Пустая инъекция
-После серии выполняется инъекция холостой пробы. Остаточный сигнал на времени удерживания главного пика не должен превышать 0,5 % от высоты главного пика стандартного раствора. При превышении проводится промывка системы и повторная проверка.
+### 4.2 Blank injection
+After the sequence, a blank sample is injected. The residual signal at the main-peak retention time must not exceed 0.5% of the main-peak height of the standard solution. If it is exceeded, the system is flushed and the check is repeated.
 
-## 5. Порядок проведения
+## 5. Procedure
 
-### 5.1 Подготовка
-Приготовить стандартный раствор основного вещества концентрацией, указанной в аналитической методике. Раствор выдержать при комнатной температуре 30 минут и профильтровать через мембранный фильтр 0,45 мкм. Подготовить холостую пробу (растворитель).
+### 5.1 Preparation
+Prepare a standard solution of the main substance at the concentration specified in the analytical method. Keep the solution at room temperature for 30 minutes and filter it through a 0.45 µm membrane filter. Prepare a blank sample (solvent).
 
-### 5.2 Серия инъекций
-Выполнить пять последовательных инъекций стандартного раствора объёмом 10 мкл. RSD рассчитывается по площадям главного пика пяти инъекций. Затем выполнить одну инъекцию холостой пробы и зафиксировать остаточный сигнал.
+### 5.2 Injection sequence
+Perform five consecutive 10 µL injections of the standard solution. RSD is calculated from the main-peak areas of the five injections. Then perform one injection of the blank sample and record the residual signal.
 
-## 6. Действия при несоответствии
+## 6. Actions on Non-Conformance
 
-### 6.1 Невыполнение критериев
-При невыполнении любого критерия серия не начинается. Оператор записывает причину в журнал системы: дегазация подвижной фазы, замена колонки или повторная подготовка стандартного раствора, после чего проверка повторяется целиком. Повторная неудачная проверка оформляется отклонением по SOP-QA-005.
+### 6.1 Failure to meet the criteria
+If any criterion is not met, the run must not begin. The operator records the reason in the system log: degassing of the mobile phase, column replacement, or repeated preparation of the standard solution, after which the check is repeated in full. A second failed check is raised as a deviation under SOP-QA-005.

@@ -63,12 +63,12 @@ public sealed class PasswordHasherTests
     [Fact]
     public void Verify_RoundTripsANonAsciiPassword()
     {
-        // Rfc2898DeriveBytes.Pbkdf2(string, ...) encodes UTF-8 on both ends, so Cyrillic must survive.
-        // The laboratory's users and corpus are Russian; an ASCII-only password would be a real defect.
-        var (hash, salt) = Hasher.Hash("Пароль🔬2026");
+        // Rfc2898DeriveBytes.Pbkdf2(string, ...) encodes UTF-8 on both ends, so non-ASCII
+        // characters must survive. An ASCII-only password would leave the UTF-8 path untested.
+        var (hash, salt) = Hasher.Hash("Naïve🔬2026");
 
-        Hasher.Verify("Пароль🔬2026", hash, salt).Should().BeTrue();
-        Hasher.Verify("Пароль🔬2025", hash, salt).Should().BeFalse();
+        Hasher.Verify("Naïve🔬2026", hash, salt).Should().BeTrue();
+        Hasher.Verify("Naïve🔬2025", hash, salt).Should().BeFalse();
     }
 
     [Fact]
